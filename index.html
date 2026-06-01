@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EaglercraftX Launcher</title>
+    <title>EaglercraftX CDN Launcher</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -12,16 +12,20 @@
   <body>
     <div class="shell">
       <aside class="sidebar" aria-label="Launcher navigation">
-        <a class="brand" href="#" aria-label="EaglercraftX home">
+        <a class="brand" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" aria-label="EaglercraftX CDN home">
           <span class="brand-mark">EX</span>
           <span>
             <strong>EaglercraftX</strong>
-            <small>Launcher</small>
+            <small>CDN Launcher</small>
           </span>
         </a>
 
         <nav class="nav-list" aria-label="Primary">
-          <button class="nav-item active" data-tab="clients" type="button">
+          <button class="nav-item active" data-tab="base" type="button">
+            <span>V</span>
+            Vanilla
+          </button>
+          <button class="nav-item" data-tab="clients" type="button">
             <span>C</span>
             Clients
           </button>
@@ -29,21 +33,21 @@
             <span>M</span>
             Mods
           </button>
-          <button class="nav-item" data-tab="resource-packs" type="button">
-            <span>R</span>
-            Resource Packs
-          </button>
           <button class="nav-item" data-tab="tools" type="button">
             <span>T</span>
             Tools
           </button>
+          <button class="nav-item" data-tab="skins" type="button">
+            <span>S</span>
+            Skins
+          </button>
         </nav>
 
         <section class="profile-card">
-          <div class="avatar" aria-hidden="true">C</div>
+          <div class="avatar" aria-hidden="true">CDN</div>
           <div>
-            <strong>CI010</strong>
-            <small>Ready to launch</small>
+            <strong id="cdnStatus">Connecting</strong>
+            <small id="cdnUrl">EaglercraftXLauncherCDN</small>
           </div>
         </section>
       </aside>
@@ -52,54 +56,54 @@
         <header class="topbar">
           <button class="icon-button" aria-label="Back">←</button>
           <div>
-            <p class="eyebrow">Minimal launcher workspace</p>
-            <h1>Minecraft Legendary Edition 1.20.1-2.3</h1>
+            <p class="eyebrow">Live CDN workspace</p>
+            <h1>EaglercraftX Launcher</h1>
           </div>
           <div class="topbar-actions">
-            <label class="search" aria-label="Search launcher content">
+            <label class="search" aria-label="Search CDN content">
               <span>⌕</span>
-              <input id="search" type="search" placeholder="Search clients, mods, packs..." />
+              <input id="search" type="search" placeholder="Search versions, clients, mods, tools..." />
             </label>
-            <button class="icon-button" aria-label="Language">A</button>
-            <button class="icon-button" aria-label="Open launcher folder">F</button>
+            <a class="icon-button" href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncherCDN" target="_blank" rel="noreferrer" aria-label="Open CDN repository">GH</a>
+            <a class="icon-button" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer" aria-label="Open CDN root">CDN</a>
           </div>
         </header>
 
         <section class="hero-grid">
           <article class="hero-card">
             <div class="hero-copy">
-              <p class="eyebrow">Fast browser-native launching</p>
-              <h2>Play Eaglercraft with a clean modern hub.</h2>
+              <p class="eyebrow">Base URL + relative file path</p>
+              <h2>Launch directly from your EaglercraftX CDN.</h2>
               <p>
-                Browse vanilla clients, modded builds, downloadable resource packs, and utility tools from one polished screen.
+                The launcher reads your CDN JSON manifests and file list, turns every relative path into a playable CDN URL, and keeps the UI clean.
               </p>
               <div class="hero-actions">
                 <button class="primary-action" id="playNow" type="button">Play selected</button>
-                <button class="secondary-action" type="button">Import client</button>
+                <a class="secondary-action" id="selectedLink" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer">Open CDN</a>
               </div>
             </div>
             <div class="orbital" aria-hidden="true">
               <span class="planet planet-main">X</span>
               <span class="planet planet-green">MC</span>
-              <span class="planet planet-orange">CF</span>
+              <span class="planet planet-orange">CDN</span>
             </div>
           </article>
 
           <article class="status-card">
-            <p class="eyebrow">Selected profile</p>
-            <h3>Legendary Survival</h3>
+            <p class="eyebrow">Selected item</p>
+            <h3 id="selectedTitle">Loading CDN...</h3>
             <dl>
               <div>
-                <dt>Version</dt>
-                <dd>1.20.1-forge-47.3.22</dd>
+                <dt>Version / Type</dt>
+                <dd id="selectedMeta">Waiting for manifests</dd>
               </div>
               <div>
-                <dt>Resource Packs</dt>
-                <dd>25 enabled</dd>
+                <dt>Library Items</dt>
+                <dd id="contentCount">0 loaded</dd>
               </div>
               <div>
-                <dt>Data Source</dt>
-                <dd>assets/json</dd>
+                <dt>File List</dt>
+                <dd id="fileListStatus">Repository/File_list</dd>
               </div>
             </dl>
           </article>
@@ -108,33 +112,33 @@
         <section class="content-layout">
           <aside class="pack-panel">
             <div class="section-heading">
-              <p class="eyebrow">Selected Resource Packs</p>
-              <button class="tiny-button" type="button">☰</button>
+              <p class="eyebrow">CDN Sources</p>
+              <button class="tiny-button" id="refreshData" type="button">Refresh</button>
             </div>
-            <div class="pack-list" id="packList"></div>
+            <div class="pack-list" id="sourceList"></div>
           </aside>
 
           <section class="library-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow" id="activeLabel">Clients</p>
-                <h2 id="activeTitle">Launcher Library</h2>
+                <p class="eyebrow" id="activeLabel">Vanilla</p>
+                <h2 id="activeTitle">CDN Library</h2>
               </div>
               <div class="chip-row" aria-label="Quick filters">
-                <button class="chip active" type="button">All</button>
-                <button class="chip" type="button">64x</button>
-                <button class="chip" type="button">256x</button>
-                <button class="chip" type="button">16</button>
+                <button class="chip active" data-filter="all" type="button">All</button>
+                <button class="chip" data-filter="1.8" type="button">1.8</button>
+                <button class="chip" data-filter="1.12" type="button">1.12</button>
+                <button class="chip" data-filter="active" type="button">Active</button>
               </div>
             </div>
 
-            <div class="cards-grid" id="cardsGrid"></div>
+            <div class="cards-grid" id="cardsGrid" aria-live="polite"></div>
           </section>
         </section>
       </main>
     </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite">Launching selected client...</div>
+    <div class="toast" id="toast" role="status" aria-live="polite">Loading CDN data...</div>
 
     <script src="script.js"></script>
   </body>

@@ -36,6 +36,10 @@ button {
   cursor: pointer;
 }
 
+a {
+  text-decoration: none;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 17.5rem minmax(0, 1fr);
@@ -138,6 +142,7 @@ button {
   border-radius: 50%;
   background: linear-gradient(135deg, #fed7aa, #fb923c);
   color: #331407;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
@@ -233,7 +238,7 @@ button {
 
 .hero-card {
   position: relative;
-  min-height: 17rem;
+  min-height: 15rem;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 17rem;
@@ -265,7 +270,7 @@ button {
 
 .hero-copy h2 {
   max-width: 35rem;
-  font-size: clamp(2rem, 4.4vw, 3.9rem);
+  font-size: clamp(2rem, 3.8vw, 3.35rem);
   line-height: 0.98;
 }
 
@@ -273,7 +278,7 @@ button {
   max-width: 38rem;
   color: var(--muted);
   font-size: 1.05rem;
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .hero-actions {
@@ -283,6 +288,9 @@ button {
 
 .primary-action,
 .secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   padding: 0.9rem 1.2rem;
   font-weight: 800;
@@ -297,7 +305,7 @@ button {
 .orbital {
   position: relative;
   z-index: 1;
-  min-height: 17rem;
+  min-height: 14rem;
 }
 
 .planet {
@@ -444,6 +452,19 @@ button {
   color: var(--accent);
 }
 
+.pack-card.is-loaded {
+  border-color: rgba(74, 222, 128, 0.24);
+}
+
+.source-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.65rem;
+  color: var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  font-weight: 800;
+}
+
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -475,6 +496,37 @@ button {
 .card p {
   margin: 0;
   line-height: 1.55;
+}
+
+.path-line {
+  overflow: hidden;
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.55rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-icon img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.empty-card {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--line);
+  border-radius: 1.2rem;
+  padding: 2rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.empty-card h3 {
+  margin-top: 0;
+  color: var(--text);
 }
 
 .card-footer {
