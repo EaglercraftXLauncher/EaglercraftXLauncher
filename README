@@ -1,1 +1,11 @@
-EaglercraftXLauncher
+# EaglercraftX Launcher
+
+A minimal, modern, static Eaglercraft launcher concept with a dark glass UI, client library, resource pack list, quick filters, and responsive layout.
+
+## Run locally
+
+```bash
+python3 -m http.server 4173
+```
+
+Then open <http://localhost:4173>.

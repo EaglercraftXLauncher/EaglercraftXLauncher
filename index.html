@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EaglercraftX Launcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Launcher navigation">
+        <a class="brand" href="#" aria-label="EaglercraftX home">
+          <span class="brand-mark">EX</span>
+          <span>
+            <strong>EaglercraftX</strong>
+            <small>Launcher</small>
+          </span>
+        </a>
+
+        <nav class="nav-list" aria-label="Primary">
+          <button class="nav-item active" data-tab="clients" type="button">
+            <span>C</span>
+            Clients
+          </button>
+          <button class="nav-item" data-tab="mods" type="button">
+            <span>M</span>
+            Mods
+          </button>
+          <button class="nav-item" data-tab="resource-packs" type="button">
+            <span>R</span>
+            Resource Packs
+          </button>
+          <button class="nav-item" data-tab="tools" type="button">
+            <span>T</span>
+            Tools
+          </button>
+        </nav>
+
+        <section class="profile-card">
+          <div class="avatar" aria-hidden="true">C</div>
+          <div>
+            <strong>CI010</strong>
+            <small>Ready to launch</small>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <button class="icon-button" aria-label="Back">←</button>
+          <div>
+            <p class="eyebrow">Minimal launcher workspace</p>
+            <h1>Minecraft Legendary Edition 1.20.1-2.3</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="search" aria-label="Search launcher content">
+              <span>⌕</span>
+              <input id="search" type="search" placeholder="Search clients, mods, packs..." />
+            </label>
+            <button class="icon-button" aria-label="Language">A</button>
+            <button class="icon-button" aria-label="Open launcher folder">F</button>
+          </div>
+        </header>
+
+        <section class="hero-grid">
+          <article class="hero-card">
+            <div class="hero-copy">
+              <p class="eyebrow">Fast browser-native launching</p>
+              <h2>Play Eaglercraft with a clean modern hub.</h2>
+              <p>
+                Browse vanilla clients, modded builds, downloadable resource packs, and utility tools from one polished screen.
+              </p>
+              <div class="hero-actions">
+                <button class="primary-action" id="playNow" type="button">Play selected</button>
+                <button class="secondary-action" type="button">Import client</button>
+              </div>
+            </div>
+            <div class="orbital" aria-hidden="true">
+              <span class="planet planet-main">X</span>
+              <span class="planet planet-green">MC</span>
+              <span class="planet planet-orange">CF</span>
+            </div>
+          </article>
+
+          <article class="status-card">
+            <p class="eyebrow">Selected profile</p>
+            <h3>Legendary Survival</h3>
+            <dl>
+              <div>
+                <dt>Version</dt>
+                <dd>1.20.1-forge-47.3.22</dd>
+              </div>
+              <div>
+                <dt>Resource Packs</dt>
+                <dd>25 enabled</dd>
+              </div>
+              <div>
+                <dt>Data Source</dt>
+                <dd>assets/json</dd>
+              </div>
+            </dl>
+          </article>
+        </section>
+
+        <section class="content-layout">
+          <aside class="pack-panel">
+            <div class="section-heading">
+              <p class="eyebrow">Selected Resource Packs</p>
+              <button class="tiny-button" type="button">☰</button>
+            </div>
+            <div class="pack-list" id="packList"></div>
+          </aside>
+
+          <section class="library-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow" id="activeLabel">Clients</p>
+                <h2 id="activeTitle">Launcher Library</h2>
+              </div>
+              <div class="chip-row" aria-label="Quick filters">
+                <button class="chip active" type="button">All</button>
+                <button class="chip" type="button">64x</button>
+                <button class="chip" type="button">256x</button>
+                <button class="chip" type="button">16</button>
+              </div>
+            </div>
+
+            <div class="cards-grid" id="cardsGrid"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">Launching selected client...</div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
