@@ -1,145 +1,154 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EaglercraftX CDN Launcher</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="shell">
-      <aside class="sidebar" aria-label="Launcher navigation">
-        <a class="brand" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" aria-label="EaglercraftX CDN home">
-          <span class="brand-mark">EX</span>
-          <span>
-            <strong>EaglercraftX</strong>
-            <small>CDN Launcher</small>
-          </span>
-        </a>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EaglercraftX Launcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
 
-        <nav class="nav-list" aria-label="Primary">
-          <button class="nav-item active" data-tab="base" type="button">
-            <span>V</span>
-            Vanilla
-          </button>
-          <button class="nav-item" data-tab="clients" type="button">
-            <span>C</span>
-            Clients
-          </button>
-          <button class="nav-item" data-tab="mods" type="button">
-            <span>M</span>
-            Mods
-          </button>
-          <button class="nav-item" data-tab="tools" type="button">
-            <span>T</span>
-            Tools
-          </button>
-          <button class="nav-item" data-tab="skins" type="button">
-            <span>S</span>
-            Skins
-          </button>
-        </nav>
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <a class="brand" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer">
+      <div class="brand-logo">EX</div>
+      <div class="brand-text">
+        <span class="brand-name">EaglercraftX</span>
+        <span class="brand-sub">CDN Launcher</span>
+      </div>
+    </a>
 
-        <section class="profile-card">
-          <div class="avatar" aria-hidden="true">CDN</div>
-          <div>
-            <strong id="cdnStatus">Connecting</strong>
-            <small id="cdnUrl">EaglercraftXLauncherCDN</small>
-          </div>
-        </section>
-      </aside>
-
-      <main class="main-panel">
-        <header class="topbar">
-          <button class="icon-button" aria-label="Back">←</button>
-          <div>
-            <p class="eyebrow">Live CDN workspace</p>
-            <h1>EaglercraftX Launcher</h1>
-          </div>
-          <div class="topbar-actions">
-            <label class="search" aria-label="Search CDN content">
-              <span>⌕</span>
-              <input id="search" type="search" placeholder="Search versions, clients, mods, tools..." />
-            </label>
-            <a class="icon-button" href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncherCDN" target="_blank" rel="noreferrer" aria-label="Open CDN repository">GH</a>
-            <a class="icon-button" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer" aria-label="Open CDN root">CDN</a>
-          </div>
-        </header>
-
-        <section class="hero-grid">
-          <article class="hero-card">
-            <div class="hero-copy">
-              <p class="eyebrow">Base URL + relative file path</p>
-              <h2>Launch directly from your EaglercraftX CDN.</h2>
-              <p>
-                The launcher reads your CDN JSON manifests and file list, turns every relative path into a playable CDN URL, and keeps the UI clean.
-              </p>
-              <div class="hero-actions">
-                <button class="primary-action" id="playNow" type="button">Play selected</button>
-                <a class="secondary-action" id="selectedLink" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer">Open CDN</a>
-              </div>
-            </div>
-            <div class="orbital" aria-hidden="true">
-              <span class="planet planet-main">X</span>
-              <span class="planet planet-green">MC</span>
-              <span class="planet planet-orange">CDN</span>
-            </div>
-          </article>
-
-          <article class="status-card">
-            <p class="eyebrow">Selected item</p>
-            <h3 id="selectedTitle">Loading CDN...</h3>
-            <dl>
-              <div>
-                <dt>Version / Type</dt>
-                <dd id="selectedMeta">Waiting for manifests</dd>
-              </div>
-              <div>
-                <dt>Library Items</dt>
-                <dd id="contentCount">0 loaded</dd>
-              </div>
-              <div>
-                <dt>File List</dt>
-                <dd id="fileListStatus">Repository/File_list</dd>
-              </div>
-            </dl>
-          </article>
-        </section>
-
-        <section class="content-layout">
-          <aside class="pack-panel">
-            <div class="section-heading">
-              <p class="eyebrow">CDN Sources</p>
-              <button class="tiny-button" id="refreshData" type="button">Refresh</button>
-            </div>
-            <div class="pack-list" id="sourceList"></div>
-          </aside>
-
-          <section class="library-panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow" id="activeLabel">Vanilla</p>
-                <h2 id="activeTitle">CDN Library</h2>
-              </div>
-              <div class="chip-row" aria-label="Quick filters">
-                <button class="chip active" data-filter="all" type="button">All</button>
-                <button class="chip" data-filter="1.8" type="button">1.8</button>
-                <button class="chip" data-filter="1.12" type="button">1.12</button>
-                <button class="chip" data-filter="active" type="button">Active</button>
-              </div>
-            </div>
-
-            <div class="cards-grid" id="cardsGrid" aria-live="polite"></div>
-          </section>
-        </section>
-      </main>
+    <div class="nav-section-label">Browse</div>
+    <div class="nav-list">
+      <button class="nav-btn active" data-tab="base">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Vanilla
+        <span class="nav-count" id="count-base">0</span>
+      </button>
+      <button class="nav-btn" data-tab="clients">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+        Clients
+        <span class="nav-count" id="count-clients">0</span>
+      </button>
+      <button class="nav-btn" data-tab="mods">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        Mods
+        <span class="nav-count" id="count-mods">0</span>
+      </button>
+      <button class="nav-btn" data-tab="tools">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Tools
+        <span class="nav-count" id="count-tools">0</span>
+      </button>
+      <button class="nav-btn" data-tab="skins">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Skins
+        <span class="nav-count" id="count-skins">0</span>
+      </button>
     </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite">Loading CDN data...</div>
+    <div class="sidebar-footer">
+      <div class="cdn-status-bar">
+        <span class="cdn-dot" id="cdnDot"></span>
+        <span id="cdnStatusText">Connecting to CDN...</span>
+      </div>
+      <a class="gh-link" href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncherCDN" target="_blank" rel="noreferrer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        View on GitHub
+      </a>
+    </div>
+  </nav>
 
-    <script src="script.js"></script>
-  </body>
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="searchInput" class="search-input" placeholder="Search versions, mods, tools..." autocomplete="off" />
+        <button class="search-clear" id="searchClear" aria-label="Clear search">×</button>
+      </div>
+      <div class="topbar-right">
+        <a class="topbar-btn" href="https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/" target="_blank" rel="noreferrer" title="Open CDN root">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          CDN
+        </a>
+        <button class="topbar-btn" id="refreshBtn" title="Refresh CDN data">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Tab header -->
+    <div class="tab-header">
+      <div>
+        <h1 class="tab-title" id="tabTitle">Vanilla Versions</h1>
+        <p class="tab-sub" id="tabSub">Official Eaglercraft versions from the CDN</p>
+      </div>
+      <div class="filter-row" id="filterRow">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="1.8">1.8</button>
+        <button class="filter-chip" data-filter="1.12">1.12</button>
+        <button class="filter-chip" data-filter="wasm">WASM</button>
+      </div>
+    </div>
+
+    <!-- Content grid -->
+    <div class="cards-area" id="cardsArea">
+      <!-- Skeleton loaders shown initially -->
+      <div class="skeleton-grid" id="skeletonGrid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+      <div class="cards-grid" id="cardsGrid"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState" hidden>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <h3>No results found</h3>
+      <p>Try adjusting your search or filter, or <button class="inline-btn" id="clearSearchBtn">clear search</button>.</p>
+    </div>
+
+  </main>
+
+  <!-- Launch modal -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Close">×</button>
+      <div class="modal-icon" id="modalIcon"></div>
+      <h2 class="modal-title" id="modalTitle">Launch Item</h2>
+      <p class="modal-meta" id="modalMeta"></p>
+      <p class="modal-desc" id="modalDesc"></p>
+      <div class="modal-path" id="modalPath"></div>
+      <div class="modal-actions">
+        <button class="modal-launch" id="modalLaunch">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Launch
+        </button>
+        <a class="modal-open" id="modalOpen" href="#" target="_blank" rel="noreferrer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open in new tab
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="script.js"></script>
+</body>
 </html>
