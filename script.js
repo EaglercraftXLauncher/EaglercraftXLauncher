@@ -1,7 +1,7 @@
 /* ─── Constants ─── */
 const CDN = "https://eaglercraftxlauncher.github.io/EaglercraftXLauncherCDN/";
 const GH_API = "https://api.github.com/repos/EaglercraftXLauncher/EaglercraftXLauncherCDN/git/trees/gh-pages?recursive=1";
-const FILE_LIST = "/file_list.txt";
+const FILE_LIST = "./file_list.txt";
 
 const TAB_META = {
   base:    { title: "Vanilla Versions",   sub: "Official Eaglercraft versions from the CDN" },
