@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../lib/api";
 import type { ContentEntry, ContentType, ContentCategory } from "../types";
 
 interface BrowseState {
@@ -9,11 +8,26 @@ interface BrowseState {
   error: string | null;
 }
 
+interface BrowseResult {
+  items: ContentEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface ApiResponse {
+  ok: boolean;
+  data?: BrowseResult;
+  items?: ContentEntry[];
+  total?: number;
+}
+
 const PAGE_SIZE = 24;
+const API = '/api';
 
 export function useBrowse(
   type: ContentType,
-  category: ContentCategory,
+  category: ContentCategory | 'all',
   search: string,
   page: number
 ) {
@@ -21,16 +35,27 @@ export function useBrowse(
     items: [], total: 0, loading: true, error: null,
   });
 
-  const fetch = useCallback(async () => {
+  const load = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const result = await api.browse(type, {
-        category,
-        limit:  PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
-        q:      search || undefined,
+      const endpoint = type === 'client' ? 'clients' : type === 'mod' ? 'mods' : 'skins';
+      const sp = new URLSearchParams({
+        limit:  String(PAGE_SIZE),
+        offset: String((page - 1) * PAGE_SIZE),
       });
-      setState({ items: result.items, total: result.total, loading: false, error: null });
+      if (category !== 'all') sp.set('category', category);
+      if (search) sp.set('q', search);
+
+      const res = await fetch(`${API}/${endpoint}?${sp}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as ApiResponse;
+      const data = json.data ?? json as BrowseResult;
+      setState({
+        items:   (data.items ?? []) as ContentEntry[],
+        total:   data.total ?? 0,
+        loading: false,
+        error:   null,
+      });
     } catch (e) {
       setState(prev => ({
         ...prev,
@@ -40,7 +65,7 @@ export function useBrowse(
     }
   }, [type, category, search, page]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { load(); }, [load]);
 
-  return { ...state, refetch: fetch, pageSize: PAGE_SIZE };
+  return { ...state, refetch: load, pageSize: PAGE_SIZE };
 }
