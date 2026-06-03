@@ -11,6 +11,7 @@ interface PublicUser {
   bio: string;
   avatar: string;
   role: string;
+  gravatarEmail: string;
   createdAt: string;
 }
 
