@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: { Authorization: `Bearer ${t}` },
       });
       if (res.ok) {
-        const json = await res.json();
+        const json = await res.json() as { data?: User } & User;
         setUser(json.data ?? json);
         setToken(t);
       } else {
