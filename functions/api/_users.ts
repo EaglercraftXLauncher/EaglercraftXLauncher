@@ -1,7 +1,7 @@
 import type { Env } from "./_types";
 import { ok, fail, getUser, saveUser, sessionUser, extractToken, gravatar } from "./_utils";
 
-export async function getPublicUser(req: Request, env: Env, uid: string): Promise<Response> {
+export async function getPublicUser(_req: Request, env: Env, uid: string): Promise<Response> {
   const user = await getUser(env, uid);
   if (!user) return fail("User not found", env, 404);
   const { email: _e, providerIds: _p, ...pub } = user;
@@ -19,7 +19,7 @@ export async function updateMe(req: Request, env: Env): Promise<Response> {
   if (!user) return fail("Unauthorized", env, 401);
 
   let body: Record<string, unknown>;
-  try { body = await req.json(); } catch { return fail("Invalid JSON", env, 400); }
+  try { body = await req.json() as Record<string, unknown>; } catch { return fail("Invalid JSON", env, 400); }
 
   if (typeof body.name === "string" && body.name.trim())
     user.name = body.name.trim().slice(0, 50);
