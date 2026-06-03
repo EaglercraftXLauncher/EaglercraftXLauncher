@@ -49,7 +49,7 @@ export function useBrowse(
       const res = await fetch(`${API}/${endpoint}?${sp}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as ApiResponse;
-      const data = json.data ?? json as BrowseResult;
+      const data = (json.data ?? json) as unknown as BrowseResult;
       setState({
         items:   (data.items ?? []) as ContentEntry[],
         total:   data.total ?? 0,
