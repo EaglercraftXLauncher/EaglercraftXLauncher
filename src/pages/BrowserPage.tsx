@@ -46,7 +46,7 @@ export default function BrowserPage({ type }: BrowserPageProps) {
       const endpoint = type === 'client' ? 'clients' : type === 'mod' ? 'mods' : 'skins';
       const res = await fetch(`${API}/${endpoint}?${params}`);
       if (res.ok) {
-        const json = await res.json();
+        const json = await res.json() as { data?: { items: ContentEntry[]; total: number } } & { items: ContentEntry[]; total: number };
         const data = json.data ?? json;
         setItems(data.items ?? []);
         setTotal(data.total ?? 0);
