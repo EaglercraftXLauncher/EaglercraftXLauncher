@@ -1,19 +1,7 @@
 import { GRAVATAR_SIZE, GRAVATAR_DEFAULT } from './constants';
-import crypto from 'node:crypto';
 
 export function getGravatarUrl(email: string, size = GRAVATAR_SIZE): string {
-  // In browser environment, we need a different approach
-  if (typeof window !== 'undefined') {
-    // Client-side: use a simple hash or external service
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}&size=${size}`;
-  }
-
-  // Server-side: use proper gravatar hash
-  const hash = crypto
-    .createHash('md5')
-    .update(email.toLowerCase().trim())
-    .digest('hex');
-  return `https://gravatar.com/avatar/${hash}?s=${size}&d=${GRAVATAR_DEFAULT}`;
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}&size=${size}&d=${GRAVATAR_DEFAULT}`;
 }
 
 export function formatDate(date: string | Date): string {
@@ -64,7 +52,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
   return function (...args: Parameters<T>) {
     if (timeout) clearTimeout(timeout);
