@@ -40,7 +40,7 @@ const ProfilePage: React.FC = () => {
         `${import.meta.env.VITE_API_URL}/users/${userId}`
       );
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as Profile;
         setProfile(data);
         setEditFormData({ name: data.name, bio: data.bio });
       } else {
@@ -69,7 +69,7 @@ const ProfilePage: React.FC = () => {
       );
 
       if (response.ok) {
-        const updatedProfile = await response.json();
+        const updatedProfile = await response.json() as Profile;
         setProfile(updatedProfile);
         setIsEditModalOpen(false);
         addToast('Profile updated successfully', 'success');

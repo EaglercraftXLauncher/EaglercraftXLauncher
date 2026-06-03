@@ -19,6 +19,7 @@ const BrowserPage: React.FC<BrowserPageProps> = ({ contentType }) => {
 
   const itemsPerPage = 12;
   const categories = ['all', 'popular', 'trending', 'newest'];
+  const itemType = contentType.slice(0, -1) as ContentItem['type'];
 
   useEffect(() => {
     fetchItems();
@@ -35,7 +36,7 @@ const BrowserPage: React.FC<BrowserPageProps> = ({ contentType }) => {
         `${import.meta.env.VITE_API_URL}${API_ENDPOINTS[contentType]}`
       );
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as ContentItem[];
         setItems(data);
       } else {
         addToast('Failed to load content', 'error');
@@ -52,7 +53,7 @@ const BrowserPage: React.FC<BrowserPageProps> = ({ contentType }) => {
     let filtered = items;
 
     if (selectedCategory !== 'all') {
-      filtered = items.filter((item) => item.type === contentType);
+      filtered = items.filter((item) => item.type === itemType);
     }
 
     setFilteredItems(filtered);

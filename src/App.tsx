@@ -4,8 +4,8 @@ import Topbar from "./components/Topbar";
 import BrowserPage from "./pages/BrowserPage";
 import ProfilePage from "./pages/ProfilePage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
 import AuthPage from "./pages/AuthPage";
+import AuthErrorPage from "./pages/AuthErrorPage";
 
 export default function App() {
   return (
@@ -16,13 +16,14 @@ export default function App() {
         <div className="page-content">
           <Routes>
             <Route path="/" element={<Navigate to="/clients" replace />} />
-            <Route path="/clients" element={<BrowserPage type="client" />} />
-            <Route path="/mods"    element={<BrowserPage type="mod" />} />
-            <Route path="/skins"   element={<BrowserPage type="skin" />} />
-            <Route path="/profile/:uid" element={<ProfilePage />} />
-            <Route path="/login"        element={<AuthPage />} />
+            <Route path="/clients" element={<BrowserPage contentType="clients" />} />
+            <Route path="/mods" element={<BrowserPage contentType="mods" />} />
+            <Route path="/skins" element={<BrowserPage contentType="skins" />} />
+            <Route path="/profile/:userId" element={<ProfilePage />} />
+            <Route path="/login" element={<AuthPage />} />
+            <Route path="/auth" element={<AuthPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route path="/auth/error"    element={<AuthErrorPage />} />
+            <Route path="/auth/error" element={<AuthErrorPage />} />
           </Routes>
         </div>
       </div>

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 
 interface TopbarProps {
-  title: string;
+  title?: string;
   onSearch?: (query: string) => void;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ title, onSearch }) => {
+const Topbar: React.FC<TopbarProps> = ({ title = 'EagXL Launcher', onSearch }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
