@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
-  id: string;
+  uid: string;
   name: string;
   email: string;
   avatar: string;
-  provider: 'google' | 'github';
-  joinedAt: string;
+  role: string;
+  providers: string[];
+  createdAt: string;
 }
 
 interface AuthContextType {
@@ -15,11 +16,14 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (provider: 'google' | 'github') => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Always use /api — relative URL, no env variable needed
+const API = '/api';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -27,40 +31,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for token in sessionStorage (set by AuthCallback)
     const storedToken = sessionStorage.getItem('auth_token');
     if (storedToken) {
       setToken(storedToken);
-      refresh();
+      fetchMe(storedToken);
     } else {
       setIsLoading(false);
     }
   }, []);
 
-  const refresh = async () => {
+  const fetchMe = async (t: string) => {
     try {
-      const authToken = sessionStorage.getItem('auth_token');
-      if (!authToken) {
-        setUser(null);
-        setToken(null);
-        return;
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${authToken}` },
+      const res = await fetch(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${t}` },
       });
-
-      if (response.ok) {
-        const userData = await response.json() as User;
-        setUser(userData);
-        setToken(authToken);
+      if (res.ok) {
+        const json = await res.json();
+        setUser(json.data ?? json);
+        setToken(t);
       } else {
         sessionStorage.removeItem('auth_token');
         setUser(null);
         setToken(null);
       }
-    } catch (error) {
-      console.error('Auth refresh failed:', error);
+    } catch {
       setUser(null);
       setToken(null);
     } finally {
@@ -68,16 +62,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const login = (provider: 'google' | 'github') => {
-    const redirectUri = `${window.location.origin}/auth/callback`;
-    if (provider === 'google') {
-      window.location.href = `${import.meta.env.VITE_API_URL}/auth/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
-    } else {
-      window.location.href = `${import.meta.env.VITE_API_URL}/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`;
-    }
+  const refresh = async () => {
+    const t = sessionStorage.getItem('auth_token');
+    if (t) await fetchMe(t);
+    else setIsLoading(false);
   };
 
-  const logout = () => {
+  const login = (provider: 'google' | 'github') => {
+    // Navigate directly to the API route — no redirect_uri param needed,
+    // the server already knows where to send the user.
+    window.location.href = `${API}/auth/${provider}`;
+  };
+
+  const logout = async () => {
+    const t = sessionStorage.getItem('auth_token');
+    if (t) {
+      await fetch(`${API}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => {});
+    }
     sessionStorage.removeItem('auth_token');
     setUser(null);
     setToken(null);
@@ -91,9 +92,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 };
