@@ -1,5 +1,5 @@
 import { GRAVATAR_SIZE, GRAVATAR_DEFAULT } from './constants';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 export function getGravatarUrl(email: string, size = GRAVATAR_SIZE): string {
   // In browser environment, we need a different approach
