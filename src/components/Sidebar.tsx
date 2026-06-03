@@ -1,86 +1,59 @@
-import { NavLink, Link } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import React from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { getGravatarUrl } from '../lib/helpers';
 
-const NAV = [
-  { to: "/clients", label: "Clients",  icon: "ti-device-desktop" },
-  { to: "/mods",    label: "Mods",     icon: "ti-puzzle" },
-  { to: "/skins",   label: "Skins",    icon: "ti-user-circle" },
-];
-
-export default function Sidebar() {
-  const { user } = useAuth();
+const Sidebar: React.FC = () => {
+  const { user, isAuthenticated, logout } = useAuth();
 
   return (
-    <nav className="sidebar">
-      <Link className="sidebar-logo" to="/">
-        <div className="sidebar-logo-mark">EX</div>
-        <div>
-          <span className="sidebar-logo-name">EaglercraftX</span>
-          <span className="sidebar-logo-sub">Hub</span>
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <div className="logo">
+          <img src="/logo.png" alt="Eaglercraft" />
+          <h1>EagXL</h1>
         </div>
-      </Link>
-
-      <div className="nav-section">Browse</div>
-      <div className="nav-list">
-        {NAV.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-          >
-            <i className={`ti ${icon}`} aria-hidden="true" />
-            {label}
-          </NavLink>
-        ))}
       </div>
 
-      {user && user.role !== "user" && (
-        <>
-          <div className="nav-section">Moderation</div>
-          <div className="nav-list">
-            <NavLink
-              to="/mod/pending"
-              className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-            >
-              <i className="ti ti-shield-check" aria-hidden="true" />
-              Pending review
-            </NavLink>
-            <NavLink
-              to="/mod/archive"
-              className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-            >
-              <i className="ti ti-archive" aria-hidden="true" />
-              Archive
-            </NavLink>
-          </div>
-        </>
-      )}
-
-      <div className="sidebar-spacer" />
+      <nav className="sidebar-nav">
+        <a href="/clients" className="nav-link">
+          <span className="icon">🎮</span>
+          <span>Clients</span>
+        </a>
+        <a href="/mods" className="nav-link">
+          <span className="icon">🔧</span>
+          <span>Mods</span>
+        </a>
+        <a href="/skins" className="nav-link">
+          <span className="icon">👕</span>
+          <span>Skins</span>
+        </a>
+      </nav>
 
       <div className="sidebar-footer">
-        <div className="cdn-status-bar">
-          <span className="cdn-dot ok" />
-          <span>EaglercraftX CDN</span>
-        </div>
-        {user ? (
-          <Link to={`/profile/${user.uid}`} className="sidebar-user">
+        {isAuthenticated && user ? (
+          <div className="user-section">
             <img
-              src={user.avatar}
+              src={getGravatarUrl(user.email)}
               alt={user.name}
-              className="sidebar-user-avatar"
+              className="user-avatar"
             />
-            <div>
-              <div className="sidebar-user-name">{user.name}</div>
-              <div className="sidebar-user-role">{user.role}</div>
+            <div className="user-info">
+              <p className="user-name">{user.name}</p>
+              <p className="user-email">{user.email}</p>
             </div>
-          </Link>
+            <button onClick={logout} className="logout-btn">
+              Logout
+            </button>
+          </div>
         ) : (
-          <Link to="/login" className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
-            Sign in
-          </Link>
+          <a href="/auth" className="login-link">
+            <span className="icon">🔑</span>
+            <span>Login</span>
+          </a>
         )}
       </div>
-    </nav>
+    </aside>
   );
-}
+};
+
+export default Sidebar;

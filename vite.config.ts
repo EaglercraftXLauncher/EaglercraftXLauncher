@@ -1,21 +1,34 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
-// In dev, Vite runs on :5173 and `wrangler pages dev` runs on :8788.
-// The proxy below forwards /api/* calls from Vite → wrangler so the
-// Pages Function runs locally alongside the React dev server.
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
-    port: 5173,
+    port: 3000,
     proxy: {
-      "/api": {
-        target: "http://localhost:8788",
+      '/api': {
+        target: 'http://localhost:8788',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
       },
     },
   },
   build: {
-    outDir: "dist",
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
   },
 });

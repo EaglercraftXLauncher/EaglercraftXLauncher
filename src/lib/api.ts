@@ -1,71 +1,130 @@
-// All API calls go to /api/* which is served by the Pages Function.
-// In dev, Vite proxies /api → wrangler pages dev (:8788).
-// In production, Pages routes /api/* to the Function automatically.
+import { API_ENDPOINTS } from './constants';
 
-import type { User, ContentEntry, BrowseResult, ContentType, ContentCategory } from "../types";
-
-const BASE = "/api";
-
-function token(): string | null {
-  return sessionStorage.getItem("session_token");
+export interface ApiOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  token?: string;
 }
 
-function authHeaders(): HeadersInit {
-  const t = token();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
+
+export async function apiCall<T>(
+  endpoint: string,
+  options: ApiOptions = {}
+): Promise<T> {
+  const { method = 'GET', body, token } = options;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const config: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res  = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers ?? {}) },
-  });
-  const json = await res.json() as { ok: boolean; data?: T; error?: string };
-  if (!json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-  return json.data as T;
-}
+// Auth API
+export const authApi = {
+  getMe: (token: string) =>
+    apiCall('/auth/me', { token }),
 
-export const api = {
-  auth: {
-    // Redirect browser to OAuth provider
-    loginGoogle: () => { window.location.href = `${BASE}/auth/google`; },
-    loginGithub: () => { window.location.href = `${BASE}/auth/github`; },
+  googleAuth: (code: string, redirectUri: string) =>
+    apiCall('/auth/google/callback', {
+      method: 'POST',
+      body: { code, redirectUri },
+    }),
 
-    me:       () => apiFetch<User & { email: string }>("/auth/me"),
-    updateMe: (body: Partial<Pick<User, "name" | "bio" | "gravatarEmail">>) =>
-      apiFetch<User>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
-    logout: () => apiFetch<{ loggedOut: boolean }>("/auth/logout", { method: "POST" }),
-  },
+  githubAuth: (code: string, redirectUri: string) =>
+    apiCall('/auth/github/callback', {
+      method: 'POST',
+      body: { code, redirectUri },
+    }),
 
-  users: {
-    get: (uid: string) => apiFetch<User>(`/users/${uid}`),
-  },
+  logout: (token: string) =>
+    apiCall('/auth/logout', { method: 'POST', token }),
+};
 
-  browse: (
-    type: ContentType,
-    params: { category?: ContentCategory; limit?: number; offset?: number; q?: string } = {},
-  ) => {
-    const sp = new URLSearchParams();
-    if (params.category) sp.set("category", params.category);
-    if (params.limit)    sp.set("limit",    String(params.limit));
-    if (params.offset)   sp.set("offset",   String(params.offset));
-    if (params.q)        sp.set("q",        params.q);
-    const qs = sp.toString();
-    return apiFetch<BrowseResult>(`/${type}s${qs ? `?${qs}` : ""}`);
-  },
+// Users API
+export const usersApi = {
+  getProfile: (userId: string) =>
+    apiCall(`/users/${userId}`),
 
-  getEntry: (type: ContentType, id: string) =>
-    apiFetch<ContentEntry>(`/${type}s/${id}`),
+  updateProfile: (userId: string, data: unknown, token: string) =>
+    apiCall(`/users/${userId}`, {
+      method: 'PUT',
+      body: data,
+      token,
+    }),
 
-  createEntry: (type: ContentType, body: Partial<ContentEntry>) =>
-    apiFetch<ContentEntry>(`/${type}s`, { method: "POST", body: JSON.stringify(body) }),
+  deleteProfile: (userId: string, token: string) =>
+    apiCall(`/users/${userId}`, {
+      method: 'DELETE',
+      token,
+    }),
+};
 
-  updateEntry: (type: ContentType, id: string, body: Partial<ContentEntry>) =>
-    apiFetch<ContentEntry>(`/${type}s/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+// Content API
+export const contentApi = {
+  getClients: (page = 1, limit = 12) =>
+    apiCall(`/content/clients?page=${page}&limit=${limit}`),
 
-  archiveEntry: (type: ContentType, id: string) =>
-    apiFetch<ContentEntry>(`/${type}s/${id}/archive`, { method: "POST" }),
+  getMods: (page = 1, limit = 12) =>
+    apiCall(`/content/mods?page=${page}&limit=${limit}`),
 
-  deleteEntry: (type: ContentType, id: string) =>
-    apiFetch<{ deleted: boolean }>(`/${type}s/${id}`, { method: "DELETE" }),
+  getSkins: (page = 1, limit = 12) =>
+    apiCall(`/content/skins?page=${page}&limit=${limit}`),
+
+  searchContent: (query: string, type: string, page = 1) =>
+    apiCall(`/content/search?q=${query}&type=${type}&page=${page}`),
+
+  getContentById: (contentId: string) =>
+    apiCall(`/content/${contentId}`),
+
+  uploadContent: (data: unknown, token: string) =>
+    apiCall('/content', {
+      method: 'POST',
+      body: data,
+      token,
+    }),
+
+  updateContent: (contentId: string, data: unknown, token: string) =>
+    apiCall(`/content/${contentId}`, {
+      method: 'PUT',
+      body: data,
+      token,
+    }),
+
+  deleteContent: (contentId: string, token: string) =>
+    apiCall(`/content/${contentId}`, {
+      method: 'DELETE',
+      token,
+    }),
+};
+
+// Stats API
+export const statsApi = {
+  getStats: () =>
+    apiCall('/stats'),
+
+  getUserStats: (userId: string, token: string) =>
+    apiCall(`/stats/user/${userId}`, { token }),
 };
