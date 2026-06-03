@@ -1,7 +1,6 @@
 import type { Env, ContentEntry, ContentType, ContentCategory } from "./_types";
-import { nanoid, ok, fail, sessionUser, extractToken } from "./_utils";
+import { nanoid, ok, fail, sessionUser } from "./_utils";
 
-// ── Index helpers ──────────────────────────────────────────────
 async function getIndex(env: Env, type: ContentType, cat: ContentCategory): Promise<string[]> {
   const raw = await env.CONTENT_INDEX.get(`${type}:${cat}`);
   return raw ? (JSON.parse(raw) as string[]) : [];
@@ -23,7 +22,6 @@ async function saveEntry(env: Env, e: ContentEntry) {
   await env.CONTENT.put(`content:${e.id}`, JSON.stringify(e));
 }
 
-// ── Browse ─────────────────────────────────────────────────────
 export async function browse(req: Request, env: Env, type: ContentType): Promise<Response> {
   const sp       = new URL(req.url).searchParams;
   const category = (sp.get("category") ?? "default") as ContentCategory;
@@ -44,19 +42,18 @@ export async function browse(req: Request, env: Env, type: ContentType): Promise
   return ok({ items: entries.slice(offset, offset + limit), total: entries.length, limit, offset }, env);
 }
 
-// ── Create ─────────────────────────────────────────────────────
 export async function create(req: Request, env: Env, type: ContentType): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user) return fail("Unauthorized", env, 401);
 
   let body: Partial<ContentEntry>;
-  try { body = await req.json(); } catch { return fail("Invalid JSON", env, 400); }
+  try { body = await req.json() as Partial<ContentEntry>; } catch { return fail("Invalid JSON", env, 400); }
 
   if (!body.title || !body.description || !body.url)
     return fail("title, description and url are required", env, 400);
 
-  const isMod  = user.role !== "user";
-  const now    = new Date().toISOString();
+  const isMod = user.role !== "user";
+  const now   = new Date().toISOString();
   const entry: ContentEntry = {
     id: nanoid(), type,
     category:     isMod ? "default" : "user",
@@ -76,17 +73,15 @@ export async function create(req: Request, env: Env, type: ContentType): Promise
   return ok(entry, env, 201);
 }
 
-// ── Get one ────────────────────────────────────────────────────
 export async function getOne(req: Request, env: Env, id: string): Promise<Response> {
   const entry = await getEntry(env, id);
   if (!entry) return fail("Not found", env, 404);
-  const user  = await sessionUser(req, env);
+  const user = await sessionUser(req, env);
   if (!entry.approved && (!user || (user.role === "user" && user.uid !== entry.uploaderUid)))
     return fail("Not found", env, 404);
   return ok(entry, env);
 }
 
-// ── Update ─────────────────────────────────────────────────────
 export async function update(req: Request, env: Env, id: string): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user) return fail("Unauthorized", env, 401);
@@ -95,7 +90,7 @@ export async function update(req: Request, env: Env, id: string): Promise<Respon
   if (user.role === "user" && user.uid !== entry.uploaderUid) return fail("Forbidden", env, 403);
 
   let body: Partial<ContentEntry>;
-  try { body = await req.json(); } catch { return fail("Invalid JSON", env, 400); }
+  try { body = await req.json() as Partial<ContentEntry>; } catch { return fail("Invalid JSON", env, 400); }
 
   const updated: ContentEntry = { ...entry, updatedAt: new Date().toISOString() };
   const userFields: Array<keyof ContentEntry> = ["title", "description", "url", "imageUrl", "tags"];
@@ -103,7 +98,9 @@ export async function update(req: Request, env: Env, id: string): Promise<Respon
   const allowed = user.role !== "user" ? modFields : userFields;
 
   for (const k of allowed) {
-    if (k in body && body[k] !== undefined) (updated as Record<string, unknown>)[k] = body[k];
+    if (k in body && body[k] !== undefined) {
+      (updated as unknown as Record<string, unknown>)[k] = body[k];
+    }
   }
 
   if (updated.category !== entry.category) {
@@ -115,7 +112,6 @@ export async function update(req: Request, env: Env, id: string): Promise<Respon
   return ok(updated, env);
 }
 
-// ── Archive (soft delete, mod+) ────────────────────────────────
 export async function archive(req: Request, env: Env, id: string): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user || user.role === "user") return fail("Forbidden", env, 403);
@@ -124,13 +120,12 @@ export async function archive(req: Request, env: Env, id: string): Promise<Respo
   if (entry.category === "archive") return ok(entry, env);
 
   await removeFromIndex(env, entry.type, entry.category, id);
-  const archived = { ...entry, category: "archive" as ContentCategory, approved: false, updatedAt: new Date().toISOString() };
+  const archived: ContentEntry = { ...entry, category: "archive" as ContentCategory, approved: false, updatedAt: new Date().toISOString() };
   await saveEntry(env, archived);
   await addToIndex(env, entry.type, "archive", id);
   return ok(archived, env);
 }
 
-// ── Hard delete (admin only) ───────────────────────────────────
 export async function hardDelete(req: Request, env: Env, id: string): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user || user.role !== "admin") return fail("Forbidden", env, 403);
