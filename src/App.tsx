@@ -4,7 +4,7 @@ import Topbar from "./components/Topbar";
 import BrowserPage from "./pages/BrowserPage";
 import ProfilePage from "./pages/ProfilePage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
-import AuthErrorPage from "./pages/AuthCallbackPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import AuthPage from "./pages/AuthPage";
 
 export default function App() {
