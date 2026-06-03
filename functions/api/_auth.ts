@@ -1,11 +1,6 @@
 import type { Env, User } from "./_types";
-import {
-  nanoid, ok, fail,
-  createToken, saveSession,
-  getUser, saveUser, userByEmail, userByProvider, linkProvider,
-} from "./_utils";
+import { nanoid, createToken, saveSession, saveUser, userByEmail, userByProvider, linkProvider } from "./_utils";
 
-// ── OAuth state ────────────────────────────────────────────────
 export async function newOAuthState(env: Env): Promise<string> {
   const state = nanoid(32);
   await env.SESSIONS.put(`oauth_state:${state}`, "1", { expirationTtl: 600 });
@@ -20,7 +15,6 @@ async function consumeState(env: Env, state: string | null): Promise<boolean> {
   return true;
 }
 
-// ── Google ─────────────────────────────────────────────────────
 export function googleLoginUrl(env: Env, state: string, origin: string): string {
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id",     env.GOOGLE_CLIENT_ID);
@@ -51,19 +45,18 @@ export async function googleCallback(req: Request, env: Env): Promise<Response> 
     }),
   });
   if (!tokRes.ok) return Response.redirect(`${env.SITE_URL}/auth/error?msg=token_failed`);
-  const { access_token } = await tokRes.json<{ access_token: string }>();
+  const { access_token } = await tokRes.json() as { access_token: string };
 
   const profRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
     headers: { Authorization: `Bearer ${access_token}` },
   });
   if (!profRes.ok) return Response.redirect(`${env.SITE_URL}/auth/error?msg=profile_failed`);
-  const prof = await profRes.json<{ sub: string; email: string; name: string }>();
+  const prof = await profRes.json() as { sub: string; email: string; name: string };
 
   const user = await findOrCreate(env, { provider: "google", providerId: prof.sub, email: prof.email, name: prof.name });
   return issueSession(env, user);
 }
 
-// ── GitHub ─────────────────────────────────────────────────────
 export function githubLoginUrl(env: Env, state: string, origin: string): string {
   const u = new URL("https://github.com/login/oauth/authorize");
   u.searchParams.set("client_id",    env.GITHUB_CLIENT_ID);
@@ -84,26 +77,23 @@ export async function githubCallback(req: Request, env: Env): Promise<Response> 
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      client_id:     env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri:  `${new URL(req.url).origin}/api/auth/github/callback`,
+      client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET,
+      code, redirect_uri: `${new URL(req.url).origin}/api/auth/github/callback`,
     }),
   });
   if (!tokRes.ok) return Response.redirect(`${env.SITE_URL}/auth/error?msg=token_failed`);
-  const { access_token } = await tokRes.json<{ access_token: string }>();
+  const { access_token } = await tokRes.json() as { access_token: string };
 
-  const ghHeaders = { Authorization: `Bearer ${access_token}`, "User-Agent": "eaglercraft-hub" };
-
-  const profRes = await fetch("https://api.github.com/user", { headers: ghHeaders });
+  const ghH = { Authorization: `Bearer ${access_token}`, "User-Agent": "eaglercraft-hub" };
+  const profRes = await fetch("https://api.github.com/user", { headers: ghH });
   if (!profRes.ok) return Response.redirect(`${env.SITE_URL}/auth/error?msg=profile_failed`);
-  const prof = await profRes.json<{ id: number; login: string; name: string | null; email: string | null }>();
+  const prof = await profRes.json() as { id: number; login: string; name: string | null; email: string | null };
 
   let email = prof.email ?? "";
   if (!email) {
-    const eRes = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
+    const eRes = await fetch("https://api.github.com/user/emails", { headers: ghH });
     if (eRes.ok) {
-      const emails = await eRes.json<Array<{ email: string; primary: boolean; verified: boolean }>>();
+      const emails = await eRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
       email = emails.find(e => e.primary && e.verified)?.email ?? emails[0]?.email ?? "";
     }
   }
@@ -116,16 +106,13 @@ export async function githubCallback(req: Request, env: Env): Promise<Response> 
   return issueSession(env, user);
 }
 
-// ── Shared ─────────────────────────────────────────────────────
 async function findOrCreate(
   env: Env,
   info: { provider: "google" | "github"; providerId: string; email: string; name: string },
 ): Promise<User> {
-  // 1. By provider id
   let user = await userByProvider(env, info.provider, info.providerId);
   if (user) return user;
 
-  // 2. By email (merge providers)
   user = await userByEmail(env, info.email);
   if (user) {
     if (!user.providers.includes(info.provider)) {
@@ -137,9 +124,8 @@ async function findOrCreate(
     return user;
   }
 
-  // 3. New user
-  const now  = new Date().toISOString();
-  const uid  = nanoid();
+  const now = new Date().toISOString();
+  const uid = nanoid();
   const newUser: User = {
     uid, email: info.email, name: info.name, bio: "",
     gravatarEmail: info.email, role: "user",
