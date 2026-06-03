@@ -1,21 +1,24 @@
 import React from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+
+const MESSAGES: Record<string, string> = {
+  invalid_state:  'OAuth state mismatch. Please try again.',
+  token_failed:   'Could not exchange the OAuth token. Please try again.',
+  profile_failed: 'Could not fetch your profile from the provider.',
+  no_email:       'No verified email address was returned by GitHub. Please add a public or primary email.',
+};
 
 const AuthErrorPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const message = searchParams.get('error') ?? 'Authentication failed.';
+  const [sp] = useSearchParams();
+  const code = sp.get('msg') ?? 'unknown';
+  const message = MESSAGES[code] ?? `An unexpected error occurred (${code}).`;
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h1>Authentication Error</h1>
-          <p>{message}</p>
-        </div>
-        <Link className="auth-btn" to="/login">
-          Back to sign in
-        </Link>
-      </div>
+    <div className="error-page">
+      <div style={{ fontSize: 40 }}>⚠️</div>
+      <h1>Sign-in failed</h1>
+      <p>{message}</p>
+      <Link to="/login" className="btn btn-primary" style={{ marginTop: 8 }}>Try again</Link>
     </div>
   );
 };
