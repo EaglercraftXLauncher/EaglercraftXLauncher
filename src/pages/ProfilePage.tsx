@@ -27,9 +27,9 @@ const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     fetch(`${API}/users/${uid}`)
-      .then(r => r.json())
+      .then(r => r.json() as Promise<{ data?: PublicUser } & PublicUser>)
       .then(j => {
-        const d = j.data ?? j;
+        const d: PublicUser = j.data ?? j;
         setProfile(d);
         setForm({ name: d.name ?? '', bio: d.bio ?? '', gravatarEmail: d.gravatarEmail ?? '' });
       })
@@ -45,8 +45,8 @@ const ProfilePage: React.FC = () => {
         body: JSON.stringify(form),
       });
       if (res.ok) {
-        const j = await res.json();
-        const d = j.data ?? j;
+        const j = await res.json() as { data?: PublicUser } & PublicUser;
+        const d: PublicUser = j.data ?? j;
         setProfile(d);
         setEditing(false);
         addToast('Profile saved', 'success');
