@@ -1,8 +1,8 @@
 import type { Env, User } from "./_types";
 import {
-  nanoid, ok, fail,
+  nanoid,
   createToken, saveSession,
-  getUser, saveUser, userByEmail, userByProvider, linkProvider,
+  saveUser, userByEmail, userByProvider, linkProvider,
 } from "./_utils";
 
 // ── OAuth state ────────────────────────────────────────────────
