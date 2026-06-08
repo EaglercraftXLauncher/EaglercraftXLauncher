@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EagXL Launcher — Privacy Policy. Learn what data we collect and how we use it." />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph / Google Branding -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="https://eagxlauncher.pages.dev/privacy.html" />
+  <meta property="og:title"       content="Privacy Policy — EagXL Launcher" />
+  <meta property="og:description" content="Learn what data EagXL Launcher collects, how it is used, and your rights." />
+  <meta property="og:image"       content="https://eagxlauncher.pages.dev/og-banner.png" />
+  <meta name="twitter:card"       content="summary" />
+
+  <title>Privacy Policy — EagXL Launcher</title>
+
+  <style>
+    :root {
+      --bg:      #080b10;
+      --surface: #0e1118;
+      --border:  rgba(255,255,255,0.07);
+      --text:    #e8edf8;
+      --text2:   #7b8caa;
+      --text3:   #404a61;
+      --accent:  #4f7cff;
+      --green:   #34d995;
+      --radius:  10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 12px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .logo-name { font-weight: 700; font-size: 15px; }
+
+    nav a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 20px;
+      transition: color 120ms;
+    }
+    nav a:hover { color: var(--text); }
+    nav a.active { color: var(--accent); }
+
+    .page-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 56px 24px 100px;
+    }
+
+    .doc-meta {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 28px;
+      margin-bottom: 40px;
+    }
+    .doc-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      background: rgba(52,217,149,0.1);
+      padding: 3px 10px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+    }
+    .doc-title {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .doc-dates { font-size: 13px; color: var(--text3); }
+
+    section { margin-bottom: 40px; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 18px;
+      background: var(--green);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    p { color: var(--text2); margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    ul, ol {
+      color: var(--text2);
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    li { padding-left: 4px; }
+
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Data table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13.5px;
+    }
+    .data-table th {
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--surface);
+      color: var(--text2);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 10px 14px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table strong { color: var(--text); }
+
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin: 20px 0;
+      color: var(--text2);
+      font-size: 14px;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 24px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 13px;
+    }
+    footer a { color: var(--text2); text-decoration: none; margin: 0 10px; }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 600px) {
+      .doc-title { font-size: 24px; }
+      nav a { margin-left: 12px; }
+      .data-table { font-size: 12px; }
+      .data-table th, .data-table td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-mark">EX</div>
+      <span class="logo-name">EagXL Launcher</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/tos.html">Terms</a>
+      <a href="/privacy.html" class="active">Privacy</a>
+    </nav>
+  </header>
+
+  <main class="page-wrap">
+    <div class="doc-meta">
+      <span class="doc-label">Legal</span>
+      <h1 class="doc-title">Privacy Policy</h1>
+      <p class="doc-dates">
+        Effective date: <strong>1 June 2025</strong> &nbsp;·&nbsp; Last updated: <strong>1 June 2025</strong>
+      </p>
+    </div>
+
+    <div class="callout">
+      We keep this policy short and plain-language. We collect only what we need to run the Service and never sell your data.
+    </div>
+
+    <section>
+      <h2>1. Who We Are</h2>
+      <p>
+        EagXL Launcher is operated by <strong>CK Gaming Studios</strong>. This policy explains how we
+        collect, use, and protect personal information when you use our platform at
+        <a href="https://eagxlauncher.pages.dev">eagxlauncher.pages.dev</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Data We Collect</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Source</th>
+            <th>Why we collect it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Email address</strong></td>
+            <td>Google / GitHub OAuth</td>
+            <td>Account identity, deduplication across providers</td>
+          </tr>
+          <tr>
+            <td><strong>Display name</strong></td>
+            <td>Google / GitHub OAuth</td>
+            <td>Shown on your public profile and uploaded content</td>
+          </tr>
+          <tr>
+            <td><strong>OAuth provider ID</strong></td>
+            <td>Google / GitHub OAuth</td>
+            <td>Linking your account to the OAuth provider securely</td>
+          </tr>
+          <tr>
+            <td><strong>Profile bio & Gravatar email</strong></td>
+            <td>Provided voluntarily by you</td>
+            <td>Personalise your public profile</td>
+          </tr>
+          <tr>
+            <td><strong>Uploaded content</strong></td>
+            <td>Provided by you</td>
+            <td>Hosting and displaying clients, mods, and skins</td>
+          </tr>
+          <tr>
+            <td><strong>Session token</strong></td>
+            <td>Generated on login</td>
+            <td>Keeping you logged in (stored in your browser's sessionStorage)</td>
+          </tr>
+          <tr>
+            <td><strong>Basic request logs</strong></td>
+            <td>Cloudflare infrastructure</td>
+            <td>Security, abuse prevention, debugging</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>We do <strong>not</strong> collect passwords — authentication is handled entirely by Google/GitHub.</p>
+    </section>
+
+    <section>
+      <h2>3. How We Use Your Data</h2>
+      <ul>
+        <li>To operate and maintain your account and profile.</li>
+        <li>To display your uploaded content and attribute it to your username.</li>
+        <li>To send session tokens so you remain authenticated.</li>
+        <li>To detect and prevent abuse, spam, and violations of our Terms of Service.</li>
+        <li>To respond to support requests you initiate.</li>
+      </ul>
+      <p>We do <strong>not</strong> use your data for advertising or sell it to third parties.</p>
+    </section>
+
+    <section>
+      <h2>4. Data Storage</h2>
+      <p>
+        Your account data and content metadata are stored in <strong>Cloudflare Workers KV</strong>,
+        distributed globally across Cloudflare's edge network. Uploaded client HTML files are stored
+        as assets on <strong>GitHub Releases</strong> in the
+        <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">EaglercraftXLauncher</a>
+        repository.
+      </p>
+      <p>
+        Session tokens are stored only in your browser's <code>sessionStorage</code> and are never
+        written to a persistent cookie.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Third-Party Services</h2>
+      <p>We use the following third-party services, each governed by their own privacy policies:</p>
+      <ul>
+        <li>
+          <strong>Cloudflare</strong> —
+          <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">cloudflare.com/privacypolicy</a>
+        </li>
+        <li>
+          <strong>GitHub</strong> —
+          <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">GitHub Privacy Statement</a>
+        </li>
+        <li>
+          <strong>Google OAuth</strong> —
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>
+        </li>
+        <li>
+          <strong>Gravatar (Automattic)</strong> —
+          <a href="https://automattic.com/privacy/" target="_blank" rel="noopener">automattic.com/privacy</a>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Cookies &amp; Local Storage</h2>
+      <p>
+        EagXL Launcher does <strong>not</strong> use tracking cookies. We use browser
+        <code>sessionStorage</code> to hold your authentication token for the duration of your
+        browser session. This data is cleared automatically when you close your browser tab.
+      </p>
+      <p>
+        Eaglercraft clients running inside the launcher may use <strong>IndexedDB</strong> and
+        <code>localStorage</code> to store game save data. This data is namespaced per client and
+        stored entirely in your own browser — we have no access to it.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Your Rights</h2>
+      <p>You have the right to:</p>
+      <ul>
+        <li><strong>Access</strong> — request a copy of the data we hold about you.</li>
+        <li><strong>Correction</strong> — update your name, bio, and Gravatar email from your profile page.</li>
+        <li><strong>Deletion</strong> — request deletion of your account and all associated data.</li>
+        <li><strong>Portability</strong> — request your data in a machine-readable format.</li>
+      </ul>
+      <p>
+        To exercise any of these rights, open an issue on our
+        <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">GitHub repository</a>
+        or contact us through the platform.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Data Retention</h2>
+      <p>
+        We retain your account data for as long as your account is active. Session tokens expire
+        automatically after <strong>30 days</strong>. If you request account deletion, we will
+        remove your personal data within 30 days, except where we are legally required to retain it.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Children's Privacy</h2>
+      <p>
+        The Service is not directed at children under 13. We do not knowingly collect personal
+        information from children under 13. If you believe a child has provided us with personal
+        data, please contact us and we will delete it promptly.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Changes to This Policy</h2>
+      <p>
+        We may update this Privacy Policy from time to time. When we do, we will update the
+        "Last updated" date at the top of this page. We encourage you to review this page
+        periodically.
+      </p>
+    </section>
+
+    <section>
+      <h2>11. Contact</h2>
+      <p>
+        Questions or requests regarding this Privacy Policy should be directed to us via our
+        <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">GitHub repository</a>.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 CK Gaming Studios · EagXL Launcher</p>
+    <p style="margin-top:10px;">
+      <a href="/">Home</a>
+      <a href="/tos.html">Terms of Service</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </footer>
+
+</body>
+</html>
