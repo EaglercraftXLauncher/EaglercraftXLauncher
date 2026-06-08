@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EagXL Launcher — Terms of Service. Read our terms before using the platform." />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph / Google Branding -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="https://eagxlauncher.pages.dev/tos.html" />
+  <meta property="og:title"       content="Terms of Service — EagXL Launcher" />
+  <meta property="og:description" content="Read the EagXL Launcher Terms of Service before using our platform." />
+  <meta property="og:image"       content="https://eagxlauncher.pages.dev/og-banner.png" />
+  <meta name="twitter:card"       content="summary" />
+
+  <title>Terms of Service — EagXL Launcher</title>
+
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --bg:      #080b10;
+      --surface: #0e1118;
+      --border:  rgba(255,255,255,0.07);
+      --text:    #e8edf8;
+      --text2:   #7b8caa;
+      --text3:   #404a61;
+      --accent:  #4f7cff;
+      --radius:  10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 12px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .logo-name { font-weight: 700; font-size: 15px; }
+
+    nav a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 20px;
+      transition: color 120ms;
+    }
+    nav a:hover { color: var(--text); }
+    nav a.active { color: var(--accent); }
+
+    /* ── Layout ── */
+    .page-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 56px 24px 100px;
+    }
+
+    /* ── Doc header ── */
+    .doc-meta {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 28px;
+      margin-bottom: 40px;
+    }
+    .doc-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(79,124,255,0.1);
+      padding: 3px 10px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+    }
+    .doc-title {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .doc-dates {
+      font-size: 13px;
+      color: var(--text3);
+    }
+
+    /* ── Sections ── */
+    section { margin-bottom: 40px; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 18px;
+      background: var(--accent);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    p { color: var(--text2); margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    ul, ol {
+      color: var(--text2);
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    li { padding-left: 4px; }
+
+    strong { color: var(--text); font-weight: 600; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin: 20px 0;
+      color: var(--text2);
+      font-size: 14px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 24px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 13px;
+    }
+    footer a { color: var(--text2); text-decoration: none; margin: 0 10px; }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 600px) {
+      .doc-title { font-size: 24px; }
+      nav a { margin-left: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-mark">EX</div>
+      <span class="logo-name">EagXL Launcher</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/tos.html" class="active">Terms</a>
+      <a href="/privacy.html">Privacy</a>
+    </nav>
+  </header>
+
+  <!-- Document -->
+  <main class="page-wrap">
+    <div class="doc-meta">
+      <span class="doc-label">Legal</span>
+      <h1 class="doc-title">Terms of Service</h1>
+      <p class="doc-dates">
+        Effective date: <strong>1 June 2025</strong> &nbsp;·&nbsp; Last updated: <strong>1 June 2025</strong>
+      </p>
+    </div>
+
+    <div class="callout">
+      Please read these Terms carefully before using EagXL Launcher. By accessing or using the service you agree to be bound by them.
+    </div>
+
+    <section>
+      <h2>1. About EagXL Launcher</h2>
+      <p>
+        EagXL Launcher ("we", "us", "the Service") is a community platform that lets users browse,
+        share, and play browser-based Eaglercraft clients, mods, and skins. The Service is operated
+        by CK Gaming Studios and is hosted on Cloudflare Pages at
+        <a href="https://eagxlauncher.pages.dev">eagxlauncher.pages.dev</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Eligibility</h2>
+      <p>
+        You must be at least <strong>13 years old</strong> to use this Service. If you are under 18,
+        you confirm that you have parental or guardian consent. By using the Service you represent
+        that you meet these requirements.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. User Accounts</h2>
+      <p>You may sign in using Google or GitHub OAuth. You are responsible for:</p>
+      <ul>
+        <li>Keeping your account credentials secure.</li>
+        <li>All activity that occurs under your account.</li>
+        <li>Providing accurate profile information.</li>
+      </ul>
+      <p>We reserve the right to suspend or terminate accounts that violate these Terms.</p>
+    </section>
+
+    <section>
+      <h2>4. Acceptable Use</h2>
+      <p>You agree <strong>not</strong> to:</p>
+      <ul>
+        <li>Upload content that infringes third-party intellectual property rights.</li>
+        <li>Upload malicious code, exploits, or files designed to harm other users.</li>
+        <li>Attempt to reverse-engineer, scrape, or abuse the platform's APIs at scale.</li>
+        <li>Use the Service to harass, threaten, or impersonate others.</li>
+        <li>Circumvent access controls or upload content that violates applicable law.</li>
+        <li>Upload adult or sexually explicit content.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. User-Uploaded Content</h2>
+      <p>
+        By uploading content (clients, mods, skins, or any other file) you confirm that:
+      </p>
+      <ul>
+        <li>You own or have the rights to distribute that content.</li>
+        <li>The content does not violate any applicable law or third-party rights.</li>
+      </ul>
+      <p>
+        You grant EagXL Launcher a worldwide, royalty-free, non-exclusive licence to host, store,
+        display, and distribute your content solely for the purpose of operating the Service.
+        You retain all ownership of your content.
+      </p>
+      <p>
+        We reserve the right to remove any content at our sole discretion without prior notice.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Third-Party Services</h2>
+      <p>The Service integrates with the following third parties:</p>
+      <ul>
+        <li><strong>GitHub</strong> — used to host client HTML files as Release Assets.</li>
+        <li><strong>Cloudflare</strong> — used for hosting, edge compute, and KV storage.</li>
+        <li><strong>Google / GitHub OAuth</strong> — used for authentication.</li>
+        <li><strong>Gravatar</strong> — used for user avatar images.</li>
+      </ul>
+      <p>Your use of these services is subject to their respective terms and privacy policies.</p>
+    </section>
+
+    <section>
+      <h2>7. Disclaimers</h2>
+      <p>
+        The Service is provided <strong>"as is"</strong> and <strong>"as available"</strong> without
+        warranties of any kind, either express or implied. We do not warrant that the Service will
+        be error-free, uninterrupted, or free of harmful components.
+      </p>
+      <p>
+        We are not responsible for the content uploaded by users. Eaglercraft clients run entirely
+        inside sandboxed iframes in your browser — we are not liable for any issues arising from
+        third-party client code.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Limitation of Liability</h2>
+      <p>
+        To the maximum extent permitted by applicable law, CK Gaming Studios shall not be liable for
+        any indirect, incidental, special, consequential, or punitive damages arising out of your
+        use of the Service.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Changes to These Terms</h2>
+      <p>
+        We may update these Terms at any time. When we do, we will revise the "Last updated" date
+        above. Continued use of the Service after changes are posted constitutes your acceptance of
+        the new Terms.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Governing Law</h2>
+      <p>
+        These Terms are governed by applicable law. Any disputes shall be resolved in the
+        jurisdiction where CK Gaming Studios operates.
+      </p>
+    </section>
+
+    <section>
+      <h2>11. Contact</h2>
+      <p>
+        If you have questions about these Terms, please open an issue on our
+        <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">GitHub repository</a>
+        or reach out through the platform.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 CK Gaming Studios · EagXL Launcher</p>
+    <p style="margin-top:10px;">
+      <a href="/">Home</a>
+      <a href="/tos.html">Terms of Service</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="https://github.com/EaglercraftXLauncher/EaglercraftXLauncher" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </footer>
+
+</body>
+</html>
