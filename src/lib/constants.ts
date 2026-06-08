@@ -1,4 +1,4 @@
-export const APP_NAME = import.meta.env.VITE_APP_NAME || 'EagXL Launcher';
+export const APP_NAME = import.meta.env.VITE_APP_NAME || 'EaglercraftXLauncher';
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
 
 export const API_ENDPOINTS = {
