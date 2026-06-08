@@ -17,6 +17,7 @@
     "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
+    "babel-plugin-react-compiler": "^0.0.0-experimental-592953e-20240517",
     "@cloudflare/workers-types": "^4.20241106.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.12",
