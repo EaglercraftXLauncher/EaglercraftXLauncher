@@ -1,17 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import Sitemap from "vite-plugin-sitemap"; // Added this missing import
 
 export default defineConfig({
-      plugins: [
-      react({
-        babel: {
-          plugins: [["babel-plugin-react-compiler", { target: "18" }]]
-        }
-      }),
-      Sitemap({
-        hostname: "https://eaglercraft2ck.pages.dev",
-        generateRobotsTxt: false
-      })
+  plugins: [
+    react({
+      babel: {
+        plugins: [["babel-plugin-react-compiler", { target: "18" }]]
+      }
+    }),
+    Sitemap({
+      hostname: "https://eaglercraft2ck.pages.dev",
+      generateRobotsTxt: false
+    })
   ],
   server: {
     port: 5173,
