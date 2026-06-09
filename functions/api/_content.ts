@@ -109,7 +109,7 @@ export async function update(req: Request, env: Env, id: string): Promise<Respon
       : ["title", "description", "url", "imageUrl", "tags"];
 
   for (const k of allowed) {
-    if (k in body && body[k] !== undefined) (updated as Record<string, unknown>)[k] = body[k];
+    if (k in body && body[k] !== undefined) (updated as unknown as Record<string, unknown>)[k] = body[k];
   }
 
   if (updated.category !== entry.category) {
