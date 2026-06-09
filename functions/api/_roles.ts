@@ -18,7 +18,7 @@ import { ok, fail, sessionUser, nanoid } from "./_utils";
 // Answers are stored in env vars: DEV_QUESTION_1/2/3
 const DEV_QUESTION_PROMPTS = [
   "What file extension do all Eaglercraft clients use? (lowercase, no dot)",
-  "What JavaScript API does Eaglercraft use for 3D rendering? (all caps)",
+  "What is the username of the owner/creator of Eaglercraft and EagTek?",
   "What does EPK stand for in the Eaglercraft ecosystem?",
 ];
 
@@ -185,4 +185,4 @@ function secureCompare(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export { saveUserRole };
+export { saveUserRole }V̇
