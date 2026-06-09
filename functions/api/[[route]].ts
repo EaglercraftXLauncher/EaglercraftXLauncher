@@ -75,7 +75,6 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
     const entryMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)$/);
     if (entryMatch) {
-      const type = TYPE_MAP[entryMatch[1]];
       const id   = entryMatch[2];
       if (method === "GET")    return getOne(req, env, id);
       if (method === "PATCH")  return update(req, env, id);
