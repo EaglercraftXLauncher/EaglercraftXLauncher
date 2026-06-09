@@ -35,7 +35,7 @@ const AuthPage: React.FC = () => {
           </button>
         </div>
         <p style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
-          By signing in you agree to our <a href="/terms" style={{ color: 'var(--text2)' }}>Terms</a> and <a href="/privacy" style={{ color: 'var(--text2)' }}>Privacy Policy</a>.
+          By signing in you agree to our <a href="/tos" style={{ color: 'var(--text2)' }}>Terms</a> and <a href="/privacy" style={{ color: 'var(--text2)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>
