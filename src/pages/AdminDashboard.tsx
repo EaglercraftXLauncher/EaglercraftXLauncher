@@ -4,7 +4,7 @@
  * Owner can: generate admin passes, revoke passes, see all passes.
  * Admin can: see content, archive content (no pass management).
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
