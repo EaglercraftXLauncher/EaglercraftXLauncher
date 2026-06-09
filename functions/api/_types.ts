@@ -1,44 +1,43 @@
-// Cloudflare Pages Functions expose bindings via context.env
 export interface Env {
-  // KV namespaces (bound in wrangler.toml)
   USERS:         KVNamespace;
   SESSIONS:      KVNamespace;
   CONTENT:       KVNamespace;
   CONTENT_INDEX: KVNamespace;
 
-  // Secrets (set via `wrangler pages secret put`)
   GOOGLE_CLIENT_ID:     string;
   GOOGLE_CLIENT_SECRET: string;
   GITHUB_CLIENT_ID:     string;
   GITHUB_CLIENT_SECRET: string;
   SESSION_SECRET:       string;
+  SITE_URL:             string;
 
-  // Vars (wrangler.toml [vars] or Pages dashboard)
-  SITE_URL: string; // e.g. https://eaglercraft-hub.pages.dev
+  // New role-system variables
+  OWNER_PASSWORD:       string;   // secret env var — entering this in search box → owner
+  DEV_QUESTION_1:       string;   // correct answer to dev question 1
+  DEV_QUESTION_2:       string;   // correct answer to dev question 2
+  DEV_QUESTION_3:       string;   // correct answer to dev question 3
 }
 
-// ── User ──────────────────────────────────────────────────────
 export interface User {
-  uid:          string;
-  email:        string;
-  name:         string;
-  bio:          string;
-  gravatarEmail:string;
-  role:         "user" | "moderator" | "admin";
-  providers:    Array<"google" | "github">;
-  providerIds:  Record<string, string>;
-  createdAt:    string;
-  updatedAt:    string;
+  uid:           string;
+  email:         string;
+  name:          string;
+  bio:           string;
+  gravatarEmail: string;
+  // "user" | "developer" | "admin" | "owner"
+  role:          "user" | "developer" | "admin" | "owner";
+  providers:     Array<"google" | "github">;
+  providerIds:   Record<string, string>;
+  createdAt:     string;
+  updatedAt:     string;
 }
 
-// ── Session ───────────────────────────────────────────────────
 export interface Session {
   token:     string;
   uid:       string;
-  expiresAt: number; // unix ms
+  expiresAt: number;
 }
 
-// ── Content ───────────────────────────────────────────────────
 export type ContentType     = "client" | "mod" | "skin";
 export type ContentCategory = "default" | "user" | "archive";
 
@@ -56,4 +55,14 @@ export interface ContentEntry {
   approved:     boolean;
   createdAt:    string;
   updatedAt:    string;
+}
+
+// Admin pass stored in KV under adminpass:<code>
+export interface AdminPass {
+  code:       string;
+  createdAt:  string;
+  used:       boolean;
+  usedBy?:    string; // uid
+  usedAt?:    string;
+  label?:     string; // optional label set by owner
 }
