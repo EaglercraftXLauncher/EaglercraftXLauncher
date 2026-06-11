@@ -48,7 +48,7 @@ function Sidebar() {
       <NavLink to="/" className="sidebar-logo">
         <div className="sidebar-logo-mark">EX</div>
         <div>
-          <div className="sidebar-logo-name">EagXL</div>
+          <div className="sidebar-logo-name">EaglercraftX</div>
           <div className="sidebar-logo-sub">Launcher Hub</div>
         </div>
       </NavLink>
