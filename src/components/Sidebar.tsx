@@ -10,7 +10,7 @@ const Sidebar: React.FC = () => {
       <div className="sidebar-header">
         <div className="logo">
           <img src="/logo.png" alt="Eaglercraft" />
-          <h1>EagXL</h1>
+          <h1>EagXLauncher</h1>
         </div>
       </div>
 
