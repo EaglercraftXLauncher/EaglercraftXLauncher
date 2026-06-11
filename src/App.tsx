@@ -49,7 +49,7 @@ function Sidebar() {
         <div className="sidebar-logo-mark">EX</div>
         <div>
           <div className="sidebar-logo-name">EaglercraftX</div>
-          <div className="sidebar-logo-sub">Launcher Hub</div>
+          <div className="sidebar-logo-sub">Launcher</div>
         </div>
       </NavLink>
 
