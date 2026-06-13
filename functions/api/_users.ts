@@ -2,7 +2,7 @@ import type { Env, User } from "./_types";
 import { ok, fail, getUser, saveUser, sessionUser, extractToken, gravatar } from "./_utils";
 
 // ── Public profile ─────────────────────────────────────────────
-export async function getPublicUser(req: Request, env: Env, uid: string): Promise<Response> {
+export async function getPublicUser(_req: Request, env: Env, uid: string): Promise<Response> {
   const user = await getUser(env, uid);
   if (!user) return fail("User not found", env, 404);
   const { email: _e, providerIds: _p, ...pub } = user;
@@ -11,7 +11,7 @@ export async function getPublicUser(req: Request, env: Env, uid: string): Promis
 
 // ── List all users (paginated) ─────────────────────────────────
 export async function listUsers(_req: Request, env: Env): Promise<Response> {
-  const sp     = new URL(req.url).searchParams;
+  const sp     = new URL(_req.url).searchParams;
   const limit  = Math.min(Number(sp.get("limit") ?? 50), 100);
   const cursor = sp.get("cursor") ?? undefined;
 
