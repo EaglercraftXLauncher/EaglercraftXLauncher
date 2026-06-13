@@ -10,7 +10,7 @@ export async function getPublicUser(req: Request, env: Env, uid: string): Promis
 }
 
 // ── List all users (paginated) ─────────────────────────────────
-export async function listUsers(req: Request, env: Env): Promise<Response> {
+export async function listUsers(_req: Request, env: Env): Promise<Response> {
   const sp     = new URL(req.url).searchParams;
   const limit  = Math.min(Number(sp.get("limit") ?? 50), 100);
   const cursor = sp.get("cursor") ?? undefined;
