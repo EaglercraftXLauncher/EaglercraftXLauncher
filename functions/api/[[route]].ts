@@ -1,13 +1,17 @@
 import type { Env } from "./_types";
-import type { ContentType } from "./_types";
+import type { ContentKind } from "./_github";
 import { preflight, fail } from "./_utils";
 import { newOAuthState, googleLoginUrl, githubLoginUrl, googleCallback, githubCallback } from "./_auth";
-import { browse, create, getOne, update, archive, hardDelete } from "./_content";
+import { browse, create, getOne, getFileUrl, hardDelete } from "./_content";
 import { getPublicUser, listUsers, getMe, updateMe, logout, banUser, unbanUser } from "./_users";
 import {
   claimOwner, generateAdminPass, listAdminPasses, revokeAdminPass,
   claimAdmin, claimDeveloper, getDevQuestions,
 } from "./_roles";
+
+const KIND_MAP: Record<string, ContentKind> = {
+  clients: "client", mods: "mod", skins: "skin",
+};
 
 export const onRequest: PagesFunction<Env> = async (ctx) => {
   const { request: req, env } = ctx;
@@ -18,7 +22,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   if (method === "OPTIONS") return preflight(env);
 
   try {
-    // ── Auth ──────────────────────────────────────────────────
+    // ── Auth ────────────────────────────────────────────────────
     if (path === "/auth/google" && method === "GET") {
       const state = await newOAuthState(env);
       return Response.redirect(googleLoginUrl(env, state, url.origin));
@@ -33,7 +37,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (path === "/auth/me"     && method === "PATCH") return updateMe(req, env);
     if (path === "/auth/logout" && method === "POST")  return logout(req, env);
 
-    // ── Role promotion ────────────────────────────────────────
+    // ── Roles ───────────────────────────────────────────────────
     if (path === "/roles/claim-owner"     && method === "POST") return claimOwner(req, env);
     if (path === "/roles/claim-admin"     && method === "POST") return claimAdmin(req, env);
     if (path === "/roles/claim-developer" && method === "POST") return claimDeveloper(req, env);
@@ -43,36 +47,36 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     const passRevoke = path.match(/^\/roles\/admin-passes\/([a-z0-9]+)$/);
     if (passRevoke && method === "DELETE") return revokeAdminPass(req, env, passRevoke[1]);
 
-    // ── Users ─────────────────────────────────────────────────
+    // ── Users ───────────────────────────────────────────────────
     if (path === "/users" && method === "GET") return listUsers(req, env);
-
     const userMatch = path.match(/^\/users\/([^/]+)$/);
     if (userMatch && method === "GET") return getPublicUser(req, env, userMatch[1]);
-
     const banMatch = path.match(/^\/users\/([^/]+)\/ban$/);
     if (banMatch && method === "POST")   return banUser(req, env, banMatch[1]);
     if (banMatch && method === "DELETE") return unbanUser(req, env, banMatch[1]);
 
-    // ── Content ───────────────────────────────────────────────
-    const TYPE_MAP: Record<string, ContentType> = {
-      clients: "client", mods: "mod", skins: "skin",
-    };
+    // ── Content collection: /clients /mods /skins ───────────────
     const collMatch = path.match(/^\/(clients|mods|skins)$/);
     if (collMatch) {
-      const type = TYPE_MAP[collMatch[1]];
-      if (method === "GET")  return browse(req, env, type);
-      if (method === "POST") return create(req, env, type);
+      const kind = KIND_MAP[collMatch[1]];
+      if (method === "GET")  return browse(req, env, kind);
+      if (method === "POST") return create(req, env, kind);
     }
+
+    // ── Content single: /clients/:id /mods/:id /skins/:id ───────
     const entryMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)$/);
     if (entryMatch) {
-      const id = entryMatch[2];
-      if (method === "GET")    return getOne(req, env, id);
-      if (method === "PATCH")  return update(req, env, id);
-      if (method === "DELETE") return hardDelete(req, env, id);
+      const kind      = KIND_MAP[entryMatch[1]];
+      const contentId = entryMatch[2];
+      if (method === "GET")    return getOne(req, env, kind, contentId);
+      if (method === "DELETE") return hardDelete(req, env, kind, contentId);
     }
-    const archMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/archive$/);
-    if (archMatch && method === "POST") return archive(req, env, archMatch[2]);
 
+    // ── File download proxy: /content/:id/file ──────────────────
+    const fileMatch = path.match(/^\/content\/([^/]+)\/file$/);
+    if (fileMatch && method === "GET") return getFileUrl(req, env, fileMatch[1]);
+
+    // ── Health ──────────────────────────────────────────────────
     if (path === "/health" && method === "GET")
       return new Response(JSON.stringify({ ok: true, ts: Date.now() }), {
         headers: { "Content-Type": "application/json" },
