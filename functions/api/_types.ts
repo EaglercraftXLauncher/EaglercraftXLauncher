@@ -10,12 +10,10 @@ export interface Env {
   GITHUB_CLIENT_SECRET: string;
   SESSION_SECRET:       string;
   SITE_URL:             string;
-
-  // New role-system variables
-  OWNER_PASSWORD:       string;   // secret env var — entering this in search box → owner
-  DEV_QUESTION_1:       string;   // correct answer to dev question 1
-  DEV_QUESTION_2:       string;   // correct answer to dev question 2
-  DEV_QUESTION_3:       string;   // correct answer to dev question 3
+  OWNER_PASSWORD:       string;
+  DEV_QUESTION_1:       string;
+  DEV_QUESTION_2:       string;
+  DEV_QUESTION_3:       string;
 }
 
 export interface User {
@@ -24,12 +22,15 @@ export interface User {
   name:          string;
   bio:           string;
   gravatarEmail: string;
-  // "user" | "developer" | "admin" | "owner"
   role:          "user" | "developer" | "admin" | "owner";
   providers:     Array<"google" | "github">;
   providerIds:   Record<string, string>;
   createdAt:     string;
   updatedAt:     string;
+  // Ban/suspend fields
+  banned?:       boolean;
+  bannedUntil?:  string | null;   // ISO string — null = permanent ban
+  banReason?:    string;
 }
 
 export interface Session {
@@ -57,12 +58,11 @@ export interface ContentEntry {
   updatedAt:    string;
 }
 
-// Admin pass stored in KV under adminpass:<code>
 export interface AdminPass {
-  code:       string;
-  createdAt:  string;
-  used:       boolean;
-  usedBy?:    string; // uid
-  usedAt?:    string;
-  label?:     string; // optional label set by owner
+  code:      string;
+  createdAt: string;
+  used:      boolean;
+  usedBy?:   string;
+  usedAt?:   string;
+  label?:    string;
 }
