@@ -1,148 +1,165 @@
 /**
- * _content.ts — Content CRUD
- * Upload restricted to developer, admin, owner roles.
+ * _content.ts — Content endpoints backed by GitHub CDN
+ *
+ * GET  /api/clients|mods|skins          — read index JSON from GitHub
+ * POST /api/clients|mods|skins          — upload file + write index entry
+ * GET  /api/clients|mods|skins/:id      — single entry from index
+ * GET  /api/clients|mods|skins/:id/file — redirect to raw asset download
+ * DELETE /api/clients|mods|skins/:id   — remove entry + delete release (admin/owner)
  */
-import type { Env, ContentEntry, ContentType, ContentCategory } from "./_types";
-import { nanoid, ok, fail, sessionUser } from "./_utils";
+
+import type { Env } from "./_types";
+import { ok, fail, sessionUser, nanoid } from "./_utils";
+import {
+  readIndex, publishContent, deleteContent, getAssetUrl,
+  type ContentKind, type ContentEntry,
+} from "./_github";
 
 const CAN_UPLOAD = new Set(["developer", "admin", "owner"]);
 
-async function getIndex(env: Env, type: ContentType, cat: ContentCategory): Promise<string[]> {
-  const raw = await env.CONTENT_INDEX.get(`${type}:${cat}`);
-  return raw ? (JSON.parse(raw) as string[]) : [];
-}
-async function addToIndex(env: Env, type: ContentType, cat: ContentCategory, id: string) {
-  const ids = await getIndex(env, type, cat);
-  await env.CONTENT_INDEX.put(`${type}:${cat}`, JSON.stringify([id, ...ids.filter(i => i !== id)].slice(0, 500)));
-}
-async function removeFromIndex(env: Env, type: ContentType, cat: ContentCategory, id: string) {
-  const ids = await getIndex(env, type, cat);
-  await env.CONTENT_INDEX.put(`${type}:${cat}`, JSON.stringify(ids.filter(i => i !== id)));
-}
-
-export async function getEntry(env: Env, id: string): Promise<ContentEntry | null> {
-  const raw = await env.CONTENT.get(`content:${id}`);
-  return raw ? (JSON.parse(raw) as ContentEntry) : null;
-}
-async function saveEntry(env: Env, e: ContentEntry) {
-  await env.CONTENT.put(`content:${e.id}`, JSON.stringify(e));
+// Derive file extension + mime type from uploaded file name
+function resolveFileType(filename: string): { ext: string; mime: string } | null {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".html")) return { ext: "html", mime: "text/html" };
+  if (lower.endsWith(".js"))   return { ext: "js",   mime: "application/javascript" };
+  if (lower.endsWith(".png"))  return { ext: "png",  mime: "image/png" };
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return { ext: "png", mime: "image/jpeg" };
+  if (lower.endsWith(".gif")) return { ext: "gif",  mime: "image/gif" };
+  if (lower.endsWith(".webp"))return { ext: "webp", mime: "image/webp" };
+  return null;
 }
 
-export async function browse(req: Request, env: Env, type: ContentType): Promise<Response> {
-  const sp       = new URL(req.url).searchParams;
-  const category = (sp.get("category") ?? "default") as ContentCategory;
-  const limit    = Math.min(Number(sp.get("limit") ?? 20), 100);
-  const offset   = Number(sp.get("offset") ?? 0);
-  const q        = sp.get("q")?.toLowerCase() ?? "";
+// ── Browse ─────────────────────────────────────────────────────
+export async function browse(req: Request, env: Env, kind: ContentKind): Promise<Response> {
+  const sp     = new URL(req.url).searchParams;
+  const q      = sp.get("q")?.toLowerCase() ?? "";
+  const limit  = Math.min(Number(sp.get("limit") ?? 24), 100);
+  const offset = Number(sp.get("offset") ?? 0);
 
-  const user = await sessionUser(req, env);
-  if (category === "archive" && (!user || user.role === "user"))
-    return fail("Forbidden", env, 403);
+  const all = await readIndex(env, kind);
+  const filtered = q
+    ? all.filter(e => `${e.name} ${e.description} ${e.author}`.toLowerCase().includes(q))
+    : all;
 
-  const ids     = await getIndex(env, type, category);
-  const entries = (await Promise.all(ids.map(id => getEntry(env, id))))
-    .filter((e): e is ContentEntry => e !== null)
-    .filter(e => e.approved || (user && (user.role !== "user" || e.uploaderUid === user.uid)))
-    .filter(e => !q || `${e.title} ${e.description}`.toLowerCase().includes(q));
-
-  return ok({ items: entries.slice(offset, offset + limit), total: entries.length, limit, offset }, env);
+  return ok({
+    items:  filtered.slice(offset, offset + limit),
+    total:  filtered.length,
+    limit,
+    offset,
+  }, env);
 }
 
-export async function create(req: Request, env: Env, type: ContentType): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-
-  // Only developer, admin, owner can upload
-  if (!CAN_UPLOAD.has(user.role))
-    return fail("You need Developer, Admin, or Owner role to upload content.", env, 403);
-
-  let body: Partial<ContentEntry>;
-  try { body = await req.json(); } catch { return fail("Invalid JSON", env, 400); }
-
-  if (!body.title || !body.description || !body.url)
-    return fail("title, description and url are required", env, 400);
-
-  const now   = new Date().toISOString();
-  const entry: ContentEntry = {
-    id: nanoid(), type,
-    category:     "default",
-    title:        String(body.title).slice(0, 120),
-    description:  String(body.description).slice(0, 1000),
-    url:          String(body.url),
-    imageUrl:     body.imageUrl ? String(body.imageUrl) : undefined,
-    tags:         Array.isArray(body.tags) ? (body.tags as string[]).slice(0, 10) : [],
-    uploaderUid:  user.uid,
-    uploaderName: user.name,
-    approved:     true, // all roles that can upload are trusted
-    createdAt:    now,
-    updatedAt:    now,
-  };
-
-  await saveEntry(env, entry);
-  await addToIndex(env, type, entry.category, entry.id);
-  return ok(entry, env, 201);
-}
-
-export async function getOne(req: Request, env: Env, id: string): Promise<Response> {
-  const entry = await getEntry(env, id);
+// ── Get one ────────────────────────────────────────────────────
+export async function getOne(req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
+  const all   = await readIndex(env, kind);
+  const entry = all.find(e => e.contentId === contentId);
   if (!entry) return fail("Not found", env, 404);
-  const user  = await sessionUser(req, env);
-  if (!entry.approved && (!user || (user.role === "user" && user.uid !== entry.uploaderUid)))
-    return fail("Not found", env, 404);
   return ok(entry, env);
 }
 
-export async function update(req: Request, env: Env, id: string): Promise<Response> {
+// ── Get file download URL ──────────────────────────────────────
+export async function getFileUrl(req: Request, env: Env, contentId: string): Promise<Response> {
+  // Try each kind to find which index contains this contentId
+  for (const kind of ["client", "mod", "skin"] as ContentKind[]) {
+    const all   = await readIndex(env, kind);
+    const entry = all.find(e => e.contentId === contentId);
+    if (!entry) continue;
+
+    // Look for index.* in the release
+    for (const ext of ["html", "js", "png", "jpg", "gif", "webp"]) {
+      const url = await getAssetUrl(env, contentId, `index.${ext}`);
+      if (url) {
+        // Proxy the download so we don't expose the PAT to the browser
+        const assetRes = await fetch(url, {
+          headers: {
+            Authorization:          `Bearer ${env.GITHUB_PAT}`,
+            Accept:                 "application/octet-stream",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          redirect: "follow",
+        });
+        // Return with CORS headers
+        const headers = new Headers(assetRes.headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Cache-Control", "public, max-age=3600");
+        return new Response(assetRes.body, { status: assetRes.status, headers });
+      }
+    }
+    return fail("File asset not found in release", env, 404);
+  }
+  return fail("Content not found", env, 404);
+}
+
+// ── Create (upload) ────────────────────────────────────────────
+export async function create(req: Request, env: Env, kind: ContentKind): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user) return fail("Unauthorized", env, 401);
-  const entry = await getEntry(env, id);
-  if (!entry) return fail("Not found", env, 404);
-  if (user.role === "user" && user.uid !== entry.uploaderUid) return fail("Forbidden", env, 403);
+  if (!CAN_UPLOAD.has(user.role))
+    return fail("You need Developer, Admin, or Owner role to upload content", env, 403);
 
-  let body: Partial<ContentEntry>;
-  try { body = await req.json(); } catch { return fail("Invalid JSON", env, 400); }
+  // Must be multipart/form-data
+  let form: FormData;
+  try { form = await req.formData(); }
+  catch { return fail("Request must be multipart/form-data", env, 400); }
 
-  const updated: ContentEntry = { ...entry, updatedAt: new Date().toISOString() };
-  const allowed: Array<keyof ContentEntry> =
-    (user.role === "admin" || user.role === "owner")
-      ? ["title", "description", "url", "imageUrl", "tags", "category", "approved"]
-      : ["title", "description", "url", "imageUrl", "tags"];
+  const file        = form.get("file");
+  const name        = form.get("name")?.toString().trim();
+  const author      = form.get("author")?.toString().trim() || user.name;
+  const description = form.get("description")?.toString().trim() ?? "";
+  const faviconUrl  = form.get("faviconUrl")?.toString().trim() ?? "";
+  const posterUrl   = form.get("posterUrl")?.toString().trim() ?? "";
+  const readme      = form.get("readme")?.toString() ?? "";
 
-  for (const k of allowed) {
-    if (k in body && body[k] !== undefined) (updated as unknown as Record<string, unknown>)[k] = body[k];
+  if (!file || !(file instanceof File)) return fail("file is required", env, 400);
+  if (!name) return fail("name is required", env, 400);
+  if (file.size > 60 * 1024 * 1024) return fail("File too large — max 60 MB", env, 400);
+
+  const ft = resolveFileType(file.name);
+  if (!ft) return fail("Unsupported file type. Allowed: .html .js .png .jpg .gif .webp", env, 400);
+
+  const contentId = nanoid(14);
+  const entry: ContentEntry = {
+    contentId,
+    kind,
+    name:        name.slice(0, 100),
+    author:      author.slice(0, 60),
+    description: description.slice(0, 500),
+    faviconUrl,
+    posterUrl,
+    uploaderUid: user.uid,
+    createdAt:   new Date().toISOString(),
+  };
+
+  const fileData = await file.arrayBuffer();
+
+  try {
+    await publishContent(env, entry, fileData, ft.ext, ft.mime, readme);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return fail(`GitHub publish failed: ${msg}`, env, 502);
   }
 
-  if (updated.category !== entry.category) {
-    await removeFromIndex(env, entry.type, entry.category, id);
-    await addToIndex(env, entry.type, updated.category, id);
+  return ok(entry, env, 201);
+}
+
+// ── Delete (admin/owner only) ──────────────────────────────────
+export async function hardDelete(req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (user.role !== "admin" && user.role !== "owner")
+    return fail("Only admins and owners can delete content", env, 403);
+
+  // Verify it exists
+  const all   = await readIndex(env, kind);
+  const entry = all.find(e => e.contentId === contentId);
+  if (!entry) return fail("Not found", env, 404);
+
+  try {
+    await deleteContent(env, kind, contentId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return fail(`GitHub delete failed: ${msg}`, env, 502);
   }
 
-  await saveEntry(env, updated);
-  return ok(updated, env);
-}
-
-export async function archive(req: Request, env: Env, id: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user || user.role === "user" || user.role === "developer")
-    return fail("Forbidden", env, 403);
-  const entry = await getEntry(env, id);
-  if (!entry) return fail("Not found", env, 404);
-  if (entry.category === "archive") return ok(entry, env);
-
-  await removeFromIndex(env, entry.type, entry.category, id);
-  const archived = { ...entry, category: "archive" as ContentCategory, approved: false, updatedAt: new Date().toISOString() };
-  await saveEntry(env, archived);
-  await addToIndex(env, entry.type, "archive", id);
-  return ok(archived, env);
-}
-
-export async function hardDelete(req: Request, env: Env, id: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user || (user.role !== "admin" && user.role !== "owner"))
-    return fail("Forbidden", env, 403);
-  const entry = await getEntry(env, id);
-  if (!entry) return fail("Not found", env, 404);
-  await env.CONTENT.delete(`content:${id}`);
-  await removeFromIndex(env, entry.type, entry.category, id);
-  return ok({ deleted: true }, env);
+  return ok({ deleted: true, contentId }, env);
 }
