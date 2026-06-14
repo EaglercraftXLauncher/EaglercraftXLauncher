@@ -123,4 +123,4 @@ export async function gravatar(email: string, size = 200): Promise<string> {
   const buf  = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email.trim().toLowerCase()));
   const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
   return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=identicon`;
-}
+} 
