@@ -1,4 +1,6 @@
 export type ContentKind = "client" | "mod" | "skin";
+export type ContentType = ContentKind;
+export type ContentCategory = string;
 export type UserRole    = "user" | "developer" | "admin" | "owner";
 
 export interface User {
