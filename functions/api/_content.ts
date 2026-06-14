@@ -75,6 +75,7 @@ export async function getFileUrl(_req: Request, env: Env, contentId: string): Pr
             Authorization:          `Bearer ${env.GITHUB_PAT}`,
             Accept:                 "application/octet-stream",
             "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent":           "EaglercraftXLauncher",
           },
           redirect: "follow",
         });
