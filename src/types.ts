@@ -1,37 +1,33 @@
-export type ContentType     = "client" | "mod" | "skin";
-export type ContentCategory = "default" | "user" | "archive";
-export type UserRole        = "user" | "moderator" | "admin";
+export type ContentKind = "client" | "mod" | "skin";
+export type UserRole    = "user" | "developer" | "admin" | "owner";
 
 export interface User {
-  uid: string;
-  name: string;
-  bio: string;
+  uid:           string;
+  name:          string;
+  bio:           string;
   gravatarEmail: string;
-  avatar: string;        // resolved gravatar URL
-  role: UserRole;
-  providers: string[];
-  createdAt: string;
+  avatar:        string;
+  role:          UserRole;
+  providers:     string[];
+  createdAt:     string;
 }
 
+// Matches ContentEntry from functions/api/_github.ts
 export interface ContentEntry {
-  id: string;
-  type: ContentType;
-  category: ContentCategory;
-  title: string;
+  contentId:   string;
+  kind:        ContentKind;
+  name:        string;
+  author:      string;
+  faviconUrl:  string;
+  posterUrl:   string;
   description: string;
-  url: string;
-  imageUrl?: string;
-  tags: string[];
   uploaderUid: string;
-  uploaderName: string;
-  approved: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt:   string;
 }
 
 export interface BrowseResult {
-  items: ContentEntry[];
-  total: number;
-  limit: number;
+  items:  ContentEntry[];
+  total:  number;
+  limit:  number;
   offset: number;
 }
