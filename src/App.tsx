@@ -119,9 +119,9 @@ export default function App() {
         <Topbar />
         <Routes>
           <Route path="/"              element={<Navigate to="/clients" replace />} />
-          <Route path="/clients"       element={<BrowserPage type="client" />} />
-          <Route path="/mods"          element={<BrowserPage type="mod" />} />
-          <Route path="/skins"         element={<BrowserPage type="skin" />} />
+          <Route path="/clients"       element={<BrowserPage kind="client" />} />
+          <Route path="/mods"          element={<BrowserPage kind="mod" />} />
+          <Route path="/skins"         element={<BrowserPage kind="skin" />} />
           <Route path="/users"         element={<UsersPage />} />
           <Route path="/profile/:uid"  element={<ProfilePage />} />
           <Route path="/settings"      element={<SettingsPage />} />
