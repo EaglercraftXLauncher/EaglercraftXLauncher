@@ -50,7 +50,7 @@ export async function browse(req: Request, env: Env, kind: ContentKind): Promise
 }
 
 // ── Get one ────────────────────────────────────────────────────
-export async function getOne(req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
+export async function getOne(_req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
   const all   = await readIndex(env, kind);
   const entry = all.find(e => e.contentId === contentId);
   if (!entry) return fail("Not found", env, 404);
@@ -58,7 +58,7 @@ export async function getOne(req: Request, env: Env, kind: ContentKind, contentI
 }
 
 // ── Get file download URL ──────────────────────────────────────
-export async function getFileUrl(req: Request, env: Env, contentId: string): Promise<Response> {
+export async function getFileUrl(_req: Request, env: Env, contentId: string): Promise<Response> {
   // Try each kind to find which index contains this contentId
   for (const kind of ["client", "mod", "skin"] as ContentKind[]) {
     const all   = await readIndex(env, kind);
