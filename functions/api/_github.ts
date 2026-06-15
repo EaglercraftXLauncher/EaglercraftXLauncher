@@ -44,9 +44,15 @@ const INDEX_FILE: Record<ContentKind, string> = {
   skin:   "skins.json",
 };
 
-const BRANCH = "main";
+// Branch is read from env.CDN_REPO_BRANCH (set via Cloudflare env vars).
+// Defaults to "main" if not set — but for this project it should be "gh-pages".
 
 // ── GitHub REST helpers ────────────────────────────────────────
+
+/** Resolve the target branch — defaults to "main" if CDN_REPO_BRANCH is not set. */
+function branch(env: Env): string {
+  return env.CDN_REPO_BRANCH?.trim() || "main";
+}
 
 function ghHeaders(pat: string): Record<string, string> {
   return {
@@ -73,7 +79,7 @@ async function getFileMeta(
 ): Promise<{ content: string; sha: string } | null> {
   const res = await ghFetch(
     env.GITHUB_PAT,
-    `https://api.github.com/repos/${env.CDN_REPO_OWNER}/${env.CDN_REPO_NAME}/contents/${path}?ref=${BRANCH}`
+    `https://api.github.com/repos/${env.CDN_REPO_OWNER}/${env.CDN_REPO_NAME}/contents/${path}?ref=${branch(env)}`
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`getFileMeta ${path}: ${res.status}`);
@@ -92,7 +98,7 @@ async function putFile(
   const body: Record<string, unknown> = {
     message,
     content: btoa(unescape(encodeURIComponent(content))), // UTF-8 safe base64
-    branch:  BRANCH,
+    branch:  branch(env),
   };
   if (sha) body.sha = sha;
 
