@@ -84,17 +84,38 @@ export async function getFileUrl(_req: Request, env: Env, contentId: string): Pr
   const asset = await getIndexAsset(env, contentId);
   if (!asset) return fail("File asset not found in release", env, 404);
 
-  // Proxy the binary from GitHub (PAT never reaches the browser)
-  const assetRes = await fetch(asset.url, {
+  // Proxy the binary from GitHub (PAT never reaches the browser).
+  // IMPORTANT: GitHub's API requires a User-Agent header on every request,
+  // or it responds 403. We also handle the redirect manually — GitHub
+  // responds with a 302 to a pre-signed S3/Azure URL, and if `fetch`
+  // auto-follows with `redirect: "follow"` it forwards our Authorization
+  // header to that signed URL, which S3 rejects. So: fetch the GitHub API
+  // URL with redirect:"manual", then fetch the Location target with NO
+  // auth headers at all.
+  let assetRes = await fetch(asset.url, {
     headers: {
       Authorization:          `Bearer ${env.GITHUB_PAT}`,
       Accept:                 "application/octet-stream",
       "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent":           "eagxl-worker",
     },
-    redirect: "follow",
+    redirect: "manual",
   });
 
-  if (!assetRes.ok) return fail("Failed to fetch asset from GitHub", env, 502);
+  if (assetRes.status >= 300 && assetRes.status < 400) {
+    const location = assetRes.headers.get("location");
+    if (!location) return fail("GitHub returned a redirect with no Location header", env, 502);
+    // Pre-signed URL — do NOT attach Authorization or GitHub headers here.
+    assetRes = await fetch(location);
+  }
+
+  if (!assetRes.ok) {
+    const detail = await assetRes.text().catch(() => "");
+    return fail(
+      `Failed to fetch asset from GitHub (status ${assetRes.status}): ${detail.slice(0, 300)}`,
+      env, 502
+    );
+  }
 
   // Build a fresh header set — do NOT pass through GitHub/S3 headers,
   // since those force a download via Content-Disposition: attachment
