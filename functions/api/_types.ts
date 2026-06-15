@@ -17,6 +17,7 @@ export interface Env {
   GITHUB_PAT:       string;   // PAT with repo scope for CDN repo
   CDN_REPO_OWNER:   string;   // e.g. "EaglercraftXLauncher"
   CDN_REPO_NAME:    string;   // e.g. "EaglercraftXLauncherCDN"
+  CDN_REPO_BRANCH:  string;   // e.g. "gh-pages" — defaults to "main" if unset
 }
 
 export interface User {
