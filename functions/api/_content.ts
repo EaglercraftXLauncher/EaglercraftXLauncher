@@ -11,9 +11,22 @@
 import type { Env } from "./_types";
 import { ok, fail, sessionUser, nanoid } from "./_utils";
 import {
-  readIndex, publishContent, deleteContent, getAssetUrl,
+  readIndex, publishContent, deleteContent, getIndexAsset,
   type ContentKind, type ContentEntry,
 } from "./_github";
+
+// MIME types for serving content INLINE (viewable in browser, not downloaded)
+const SERVE_MIME: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  js:   "application/javascript; charset=utf-8",
+  png:  "image/png",
+  jpg:  "image/jpeg",
+  jpeg: "image/jpeg",
+  gif:  "image/gif",
+  webp: "image/webp",
+  md:   "text/markdown; charset=utf-8",
+  json: "application/json; charset=utf-8",
+};
 
 const CAN_UPLOAD = new Set(["developer", "admin", "owner"]);
 
@@ -57,38 +70,43 @@ export async function getOne(_req: Request, env: Env, kind: ContentKind, content
   return ok(entry, env);
 }
 
-// ── Get file download URL ──────────────────────────────────────
+// ── Serve file inline (view, not download) ──────────────────────
 export async function getFileUrl(_req: Request, env: Env, contentId: string): Promise<Response> {
-  // Try each kind to find which index contains this contentId
+  // Verify this contentId exists in one of the three indexes
+  let exists = false;
   for (const kind of ["client", "mod", "skin"] as ContentKind[]) {
-    const all   = await readIndex(env, kind);
-    const entry = all.find(e => e.contentId === contentId);
-    if (!entry) continue;
-
-    // Look for index.* in the release
-    for (const ext of ["html", "js", "png", "jpg", "gif", "webp"]) {
-      const url = await getAssetUrl(env, contentId, `index.${ext}`);
-      if (url) {
-        // Proxy the download so we don't expose the PAT to the browser
-        const assetRes = await fetch(url, {
-          headers: {
-            Authorization:          `Bearer ${env.GITHUB_PAT}`,
-            Accept:                 "application/octet-stream",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent":           "EaglercraftXLauncher",
-          },
-          redirect: "follow",
-        });
-        // Return with CORS headers
-        const headers = new Headers(assetRes.headers);
-        headers.set("Access-Control-Allow-Origin", "*");
-        headers.set("Cache-Control", "public, max-age=3600");
-        return new Response(assetRes.body, { status: assetRes.status, headers });
-      }
-    }
-    return fail("File asset not found in release", env, 404);
+    const all = await readIndex(env, kind);
+    if (all.some(e => e.contentId === contentId)) { exists = true; break; }
   }
-  return fail("Content not found", env, 404);
+  if (!exists) return fail("Content not found", env, 404);
+
+  // Single API call — find the "index.<ext>" asset and its extension
+  const asset = await getIndexAsset(env, contentId);
+  if (!asset) return fail("File asset not found in release", env, 404);
+
+  // Proxy the binary from GitHub (PAT never reaches the browser)
+  const assetRes = await fetch(asset.url, {
+    headers: {
+      Authorization:          `Bearer ${env.GITHUB_PAT}`,
+      Accept:                 "application/octet-stream",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    redirect: "follow",
+  });
+
+  if (!assetRes.ok) return fail("Failed to fetch asset from GitHub", env, 502);
+
+  // Build a fresh header set — do NOT pass through GitHub/S3 headers,
+  // since those force a download via Content-Disposition: attachment
+  // and Content-Type: application/octet-stream.
+  const headers = new Headers();
+  headers.set("Content-Type", SERVE_MIME[asset.ext] ?? "application/octet-stream");
+  // "inline" tells the browser to render/display the file, not download it
+  headers.set("Content-Disposition", "inline");
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Cache-Control", "public, max-age=3600");
+
+  return new Response(assetRes.body, { status: assetRes.status, headers });
 }
 
 // ── Create (upload) ────────────────────────────────────────────
