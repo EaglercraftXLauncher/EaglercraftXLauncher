@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { ContentEntry, ContentType, ContentCategory } from "../types";
+import type { ContentEntry, ContentKind } from "../types";
 
 interface BrowseState {
   items: ContentEntry[];
@@ -25,12 +25,11 @@ interface ApiResponse {
 const PAGE_SIZE = 24;
 const API = '/api';
 
-export function useBrowse(
-  type: ContentType,
-  category: ContentCategory | 'all',
-  search: string,
-  page: number
-) {
+/**
+ * Fetch a page of GitHub-CDN-backed content (clients, mods, skins).
+ * No category filter — content is no longer split by category.
+ */
+export function useBrowse(kind: ContentKind, search: string, page: number) {
   const [state, setState] = useState<BrowseState>({
     items: [], total: 0, loading: true, error: null,
   });
@@ -38,12 +37,11 @@ export function useBrowse(
   const load = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const endpoint = type === 'client' ? 'clients' : type === 'mod' ? 'mods' : 'skins';
+      const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
       const sp = new URLSearchParams({
         limit:  String(PAGE_SIZE),
         offset: String((page - 1) * PAGE_SIZE),
       });
-      if (category !== 'all') sp.set('category', category);
       if (search) sp.set('q', search);
 
       const res = await fetch(`${API}/${endpoint}?${sp}`);
@@ -63,7 +61,7 @@ export function useBrowse(
         error: e instanceof Error ? e.message : "Failed to load",
       }));
     }
-  }, [type, category, search, page]);
+  }, [kind, search, page]);
 
   useEffect(() => { load(); }, [load]);
 
