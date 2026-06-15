@@ -318,3 +318,24 @@ export async function getAssetUrl(
   const asset   = release.assets.find(a => a.name === filename);
   return asset?.url ?? null;
 }
+
+/**
+ * Find the "index.<ext>" asset for a content item in a single API call
+ * (avoids looping over every possible extension).
+ * Returns the asset's GitHub API URL and its file extension, or null.
+ */
+export async function getIndexAsset(
+  env:       Env,
+  contentId: string
+): Promise<{ url: string; ext: string } | null> {
+  const res = await ghFetch(
+    env.GITHUB_PAT,
+    `https://api.github.com/repos/${env.CDN_REPO_OWNER}/${env.CDN_REPO_NAME}/releases/tags/content-${contentId}`
+  );
+  if (!res.ok) return null;
+  const release = await res.json() as { assets: Array<{ name: string; url: string }> };
+  const asset = release.assets.find(a => /^index\.[a-zA-Z0-9]+$/.test(a.name));
+  if (!asset) return null;
+  const ext = asset.name.split(".").pop()!.toLowerCase();
+  return { url: asset.url, ext };
+}
