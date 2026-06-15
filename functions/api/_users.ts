@@ -123,7 +123,7 @@ export async function unbanUser(req: Request, env: Env, targetUid: string): Prom
 
   target.banned      = false;
   target.bannedUntil = null;
-  target.banReason   = undefined; 
+  target.banReason   = undefined;
   await saveUser(env, target);
   await env.USERS.delete(`banned:${targetUid}`);
 
