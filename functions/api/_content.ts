@@ -1,146 +1,55 @@
-/**
- * _content.ts — Content endpoints backed by GitHub CDN
- *
- * GET  /api/clients|mods|skins          — read index JSON from GitHub
- * POST /api/clients|mods|skins          — upload file + write index entry
- * GET  /api/clients|mods|skins/:id      — single entry from index
- * GET  /api/clients|mods|skins/:id/file — redirect to raw asset download
- * DELETE /api/clients|mods|skins/:id   — remove entry + delete release (admin/owner)
- */
-
 import type { Env } from "./_types";
 import { ok, fail, sessionUser, nanoid } from "./_utils";
 import {
-  readIndex, publishContent, deleteContent, getIndexAsset,
-  type ContentKind, type ContentEntry,
+  readIndex, createContent, getManifest, addVersion, addScreenshot,
+  addDoc, setAutoSync, runAutoSync, proxyAsset, deleteContent,
+  type ContentKind, type ClientManifest, type ContentVersion, type AutoSyncConfig,
 } from "./_github";
-
-// MIME types for serving content INLINE (viewable in browser, not downloaded)
-const SERVE_MIME: Record<string, string> = {
-  html: "text/html; charset=utf-8",
-  js:   "application/javascript; charset=utf-8",
-  png:  "image/png",
-  jpg:  "image/jpeg",
-  jpeg: "image/jpeg",
-  gif:  "image/gif",
-  webp: "image/webp",
-  md:   "text/markdown; charset=utf-8",
-  json: "application/json; charset=utf-8",
-};
 
 const CAN_UPLOAD = new Set(["developer", "admin", "owner"]);
 
-// Derive file extension + mime type from uploaded file name
-function resolveFileType(filename: string): { ext: string; mime: string } | null {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith(".html")) return { ext: "html", mime: "text/html" };
-  if (lower.endsWith(".js"))   return { ext: "js",   mime: "application/javascript" };
-  if (lower.endsWith(".png"))  return { ext: "png",  mime: "image/png" };
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return { ext: "png", mime: "image/jpeg" };
-  if (lower.endsWith(".gif")) return { ext: "gif",  mime: "image/gif" };
-  if (lower.endsWith(".webp"))return { ext: "webp", mime: "image/webp" };
-  return null;
+const MIME_MAP: Record<string, { ext: string; mime: string }> = {
+  ".html": { ext: "html", mime: "text/html" },
+  ".js":   { ext: "js",   mime: "application/javascript" },
+  ".png":  { ext: "png",  mime: "image/png" },
+  ".jpg":  { ext: "jpg",  mime: "image/jpeg" },
+  ".jpeg": { ext: "jpeg", mime: "image/jpeg" },
+  ".gif":  { ext: "gif",  mime: "image/gif" },
+  ".webp": { ext: "webp", mime: "image/webp" },
+};
+
+function resolveFile(filename: string) {
+  const dot = filename.toLowerCase().lastIndexOf(".");
+  if (dot === -1) return null;
+  return MIME_MAP[filename.toLowerCase().slice(dot)] ?? null;
 }
 
-// ── Browse ─────────────────────────────────────────────────────
+// ── Browse index ───────────────────────────────────────────────
 export async function browse(req: Request, env: Env, kind: ContentKind): Promise<Response> {
   const sp     = new URL(req.url).searchParams;
   const q      = sp.get("q")?.toLowerCase() ?? "";
   const limit  = Math.min(Number(sp.get("limit") ?? 24), 100);
   const offset = Number(sp.get("offset") ?? 0);
-
-  const all = await readIndex(env, kind);
-  const filtered = q
-    ? all.filter(e => `${e.name} ${e.description} ${e.author}`.toLowerCase().includes(q))
-    : all;
-
-  return ok({
-    items:  filtered.slice(offset, offset + limit),
-    total:  filtered.length,
-    limit,
-    offset,
-  }, env);
+  const all    = await readIndex(env, kind);
+  const filtered = q ? all.filter(e => `${e.name} ${e.description} ${e.author}`.toLowerCase().includes(q)) : all;
+  return ok({ items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }, env);
 }
 
-// ── Get one ────────────────────────────────────────────────────
-export async function getOne(_req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
-  const all   = await readIndex(env, kind);
-  const entry = all.find(e => e.contentId === contentId);
-  if (!entry) return fail("Not found", env, 404);
-  return ok(entry, env);
+// ── Get full manifest ──────────────────────────────────────────
+export async function getDetail(_req: Request, env: Env, contentId: string): Promise<Response> {
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) return fail("Not found", env, 404);
+  return ok(manifest, env);
 }
 
-// ── Serve file inline (view, not download) ──────────────────────
-export async function getFileUrl(_req: Request, env: Env, contentId: string): Promise<Response> {
-  // Verify this contentId exists in one of the three indexes
-  let exists = false;
-  for (const kind of ["client", "mod", "skin"] as ContentKind[]) {
-    const all = await readIndex(env, kind);
-    if (all.some(e => e.contentId === contentId)) { exists = true; break; }
-  }
-  if (!exists) return fail("Content not found", env, 404);
-
-  // Single API call — find the "index.<ext>" asset and its extension
-  const asset = await getIndexAsset(env, contentId);
-  if (!asset) return fail("File asset not found in release", env, 404);
-
-  // Proxy the binary from GitHub (PAT never reaches the browser).
-  // IMPORTANT: GitHub's API requires a User-Agent header on every request,
-  // or it responds 403. We also handle the redirect manually — GitHub
-  // responds with a 302 to a pre-signed S3/Azure URL, and if `fetch`
-  // auto-follows with `redirect: "follow"` it forwards our Authorization
-  // header to that signed URL, which S3 rejects. So: fetch the GitHub API
-  // URL with redirect:"manual", then fetch the Location target with NO
-  // auth headers at all.
-  let assetRes = await fetch(asset.url, {
-    headers: {
-      Authorization:          `Bearer ${env.GITHUB_PAT}`,
-      Accept:                 "application/octet-stream",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent":           "eagxl-worker",
-    },
-    redirect: "manual",
-  });
-
-  if (assetRes.status >= 300 && assetRes.status < 400) {
-    const location = assetRes.headers.get("location");
-    if (!location) return fail("GitHub returned a redirect with no Location header", env, 502);
-    // Pre-signed URL — do NOT attach Authorization or GitHub headers here.
-    assetRes = await fetch(location);
-  }
-
-  if (!assetRes.ok) {
-    const detail = await assetRes.text().catch(() => "");
-    return fail(
-      `Failed to fetch asset from GitHub (status ${assetRes.status}): ${detail.slice(0, 300)}`,
-      env, 502
-    );
-  }
-
-  // Build a fresh header set — do NOT pass through GitHub/S3 headers,
-  // since those force a download via Content-Disposition: attachment
-  // and Content-Type: application/octet-stream.
-  const headers = new Headers();
-  headers.set("Content-Type", SERVE_MIME[asset.ext] ?? "application/octet-stream");
-  // "inline" tells the browser to render/display the file, not download it
-  headers.set("Content-Disposition", "inline");
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Cache-Control", "public, max-age=3600");
-
-  return new Response(assetRes.body, { status: assetRes.status, headers });
-}
-
-// ── Create (upload) ────────────────────────────────────────────
+// ── Create new content ─────────────────────────────────────────
 export async function create(req: Request, env: Env, kind: ContentKind): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role))
-    return fail("You need Developer, Admin, or Owner role to upload content", env, 403);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Developer, Admin, or Owner role required", env, 403);
 
-  // Must be multipart/form-data
   let form: FormData;
-  try { form = await req.formData(); }
-  catch { return fail("Request must be multipart/form-data", env, 400); }
+  try { form = await req.formData(); } catch { return fail("Multipart form required", env, 400); }
 
   const file        = form.get("file");
   const name        = form.get("name")?.toString().trim();
@@ -148,58 +57,196 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
   const description = form.get("description")?.toString().trim() ?? "";
   const faviconUrl  = form.get("faviconUrl")?.toString().trim() ?? "";
   const posterUrl   = form.get("posterUrl")?.toString().trim() ?? "";
+  const bannerUrl   = form.get("bannerUrl")?.toString().trim() ?? "";
+  const versionTag  = form.get("versionTag")?.toString().trim() || "v1.0";
+  const changelog   = form.get("changelog")?.toString().trim() ?? "";
   const readme      = form.get("readme")?.toString() ?? "";
+  const tagsRaw     = form.get("tags")?.toString() ?? "";
 
   if (!file || !(file instanceof File)) return fail("file is required", env, 400);
   if (!name) return fail("name is required", env, 400);
   if (file.size > 60 * 1024 * 1024) return fail("File too large — max 60 MB", env, 400);
 
-  const ft = resolveFileType(file.name);
-  if (!ft) return fail("Unsupported file type. Allowed: .html .js .png .jpg .gif .webp", env, 400);
+  const ft = resolveFile(file.name);
+  if (!ft) return fail("Unsupported file type", env, 400);
 
+  const now       = new Date().toISOString();
   const contentId = nanoid(14);
-  const entry: ContentEntry = {
+  const manifest: ClientManifest = {
     contentId,
     kind,
     name:        name.slice(0, 100),
     author:      author.slice(0, 60),
-    description: description.slice(0, 500),
-    faviconUrl,
-    posterUrl,
+    description: description.slice(0, 1000),
+    faviconUrl, posterUrl, bannerUrl,
+    tags:        tagsRaw.split(",").map(t => t.trim()).filter(Boolean).slice(0, 15),
     uploaderUid: user.uid,
-    createdAt:   new Date().toISOString(),
+    createdAt:   now,
+    updatedAt:   now,
+    versions: [{
+      tag:        versionTag,
+      filename:   "",      // filled in by createContent
+      label:      versionTag,
+      changelog,
+      uploadedAt: now,
+      isLatest:   true,
+    }],
+    screenshots: [],
+    docs:        [],
+    autoSync:    null,
   };
 
-  const fileData = await file.arrayBuffer();
-
   try {
-    await publishContent(env, entry, fileData, ft.ext, ft.mime, readme);
+    await createContent(env, manifest, await file.arrayBuffer(), ft.ext, ft.mime, readme);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return fail(`GitHub publish failed: ${msg}`, env, 502);
+    return fail(`Publish failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
   }
 
-  return ok(entry, env, 201);
+  return ok({ contentId, name }, env, 201);
 }
 
-// ── Delete (admin/owner only) ──────────────────────────────────
+// ── Add version ────────────────────────────────────────────────
+export async function uploadVersion(req: Request, env: Env, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+
+  let form: FormData;
+  try { form = await req.formData(); } catch { return fail("Multipart form required", env, 400); }
+
+  const file       = form.get("file");
+  const versionTag = form.get("versionTag")?.toString().trim();
+  const changelog  = form.get("changelog")?.toString().trim() ?? "";
+
+  if (!file || !(file instanceof File)) return fail("file is required", env, 400);
+  if (!versionTag) return fail("versionTag is required", env, 400);
+
+  const ft = resolveFile(file.name);
+  if (!ft) return fail("Unsupported file type", env, 400);
+
+  const version: ContentVersion = {
+    tag:        versionTag,
+    filename:   "",
+    label:      versionTag,
+    changelog,
+    uploadedAt: new Date().toISOString(),
+    isLatest:   true,
+  };
+
+  try {
+    const manifest = await addVersion(env, contentId, version, await file.arrayBuffer(), ft.ext, ft.mime);
+    return ok(manifest, env);
+  } catch (e) {
+    return fail(`Version upload failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+// ── Add screenshot ─────────────────────────────────────────────
+export async function uploadScreenshot(req: Request, env: Env, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+
+  let form: FormData;
+  try { form = await req.formData(); } catch { return fail("Multipart form required", env, 400); }
+
+  const file = form.get("file");
+  if (!file || !(file instanceof File)) return fail("file is required", env, 400);
+  const ft = resolveFile(file.name);
+  if (!ft) return fail("Unsupported file type", env, 400);
+
+  try {
+    const filename = await addScreenshot(env, contentId, await file.arrayBuffer(), ft.ext, ft.mime);
+    return ok({ filename }, env, 201);
+  } catch (e) {
+    return fail(`Screenshot upload failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+// ── Add doc ────────────────────────────────────────────────────
+export async function uploadDoc(req: Request, env: Env, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+
+  let body: { name?: string; content?: string };
+  try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+
+  if (!body.name?.trim()) return fail("name is required", env, 400);
+  if (!body.content?.trim()) return fail("content is required", env, 400);
+
+  try {
+    await addDoc(env, contentId, body.name.trim(), body.content);
+    return ok({ ok: true }, env);
+  } catch (e) {
+    return fail(`Doc upload failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+// ── Auto-sync config ───────────────────────────────────────────
+export async function updateAutoSync(req: Request, env: Env, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+
+  let body: Partial<AutoSyncConfig> & { disable?: boolean };
+  try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+
+  if (body.disable) {
+    await setAutoSync(env, contentId, null);
+    return ok({ autoSync: null }, env);
+  }
+
+  if (!body.sourceUrl?.trim()) return fail("sourceUrl is required", env, 400);
+  if (!body.versionTag?.trim()) return fail("versionTag is required", env, 400);
+
+  const config: AutoSyncConfig = {
+    enabled:     body.enabled ?? true,
+    sourceUrl:   body.sourceUrl.trim(),
+    versionTag:  body.versionTag.trim(),
+    lastSyncAt:  null,
+    lastSyncOk:  null,
+    lastSyncMsg: null,
+  };
+
+  try {
+    await setAutoSync(env, contentId, config);
+    return ok({ autoSync: config }, env);
+  } catch (e) {
+    return fail(`Auto-sync config failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+// ── Trigger auto-sync ──────────────────────────────────────────
+export async function triggerSync(req: Request, env: Env, contentId: string): Promise<Response> {
+  const user = await sessionUser(req, env);
+  if (!user) return fail("Unauthorized", env, 401);
+  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+
+  const result = await runAutoSync(env, contentId);
+  return ok(result, env, result.ok ? 200 : 502);
+}
+
+// ── Proxy asset ────────────────────────────────────────────────
+export async function serveAsset(_req: Request, env: Env, contentId: string, assetPath: string): Promise<Response> {
+  const res = await proxyAsset(env, contentId, assetPath);
+  if (!res) return fail("Asset not found", env, 404);
+  return res;
+}
+
+// ── Delete content ─────────────────────────────────────────────
 export async function hardDelete(req: Request, env: Env, kind: ContentKind, contentId: string): Promise<Response> {
   const user = await sessionUser(req, env);
   if (!user) return fail("Unauthorized", env, 401);
-  if (user.role !== "admin" && user.role !== "owner")
-    return fail("Only admins and owners can delete content", env, 403);
+  if (user.role !== "admin" && user.role !== "owner") return fail("Forbidden", env, 403);
 
-  // Verify it exists
-  const all   = await readIndex(env, kind);
-  const entry = all.find(e => e.contentId === contentId);
-  if (!entry) return fail("Not found", env, 404);
+  const all = await readIndex(env, kind);
+  if (!all.find(e => e.contentId === contentId)) return fail("Not found", env, 404);
 
   try {
     await deleteContent(env, kind, contentId);
+    return ok({ deleted: true, contentId }, env);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return fail(`GitHub delete failed: ${msg}`, env, 502);
+    return fail(`Delete failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
   }
-
-  return ok({ deleted: true, contentId }, env);
 }
