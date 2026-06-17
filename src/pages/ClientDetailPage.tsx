@@ -53,7 +53,19 @@ function ClientDetailPage() {
     }, 1500);
   };
 
-  return null;
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <Link to="/" className="inline-flex items-center text-green-400 hover:text-green-500 mb-6">
+        ← Back to Browser
+      </Link>
+      <VersionUploadModal
+        isOpen={isVersionModalOpen}
+        onClose={() => setIsVersionModalOpen(false)}
+        contentId={contentId!}
+        onVersionUploaded={handleVersionUploaded}
+      />
+    </div>
+  );
 }
 
 export default ClientDetailPage;
