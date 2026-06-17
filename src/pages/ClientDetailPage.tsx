@@ -1,14 +1,9 @@
 // src/pages/ClientDetailPage.tsx
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import {
-  Play,
-  Download,
-  RefreshCw,
-  Image as ImageIcon,
-  FileText,
-  GitBranch,
-  Plus,
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { 
+  Play, Download, RefreshCw, Image as ImageIcon, 
+  FileText, GitBranch, Clock, Plus, ArrowLeft 
 } from 'lucide-react';
 import VersionUploadModal from '../components/VersionUploadModal';
 
@@ -18,286 +13,370 @@ interface Version {
   date: string;
   size: string;
   url: string;
+  downloadCount?: number;
 }
 
-interface Document {
+interface Screenshot {
+  id: string;
+  url: string;
+  caption?: string;
+}
+
+interface Doc {
+  id: string;
   name: string;
   url: string;
+  type: string;
 }
 
-interface Client {
+interface ClientData {
+  contentId: string;
   name: string;
   description: string;
-  screenshots: string[];
-  docs: Document[];
-  githubRelease?: string;
+  githubRepo?: string;
+  githubReleaseUrl?: string;
+  versions: Version[];
+  screenshots: Screenshot[];
+  docs: Doc[];
+  lastUpdated: string;
+  autoSyncUrl?: string;
 }
 
-export default function ClientDetailPage() {
+const ClientDetailPage = () => {
   const { contentId } = useParams<{ contentId: string }>();
+  const navigate = useNavigate();
 
-  const [activeVersion, setActiveVersion] = useState('1.8.8 Stable');
-  const [syncUrl, setSyncUrl] = useState('');
+  const [client, setClient] = useState<ClientData | null>(null);
+  const [activeVersion, setActiveVersion] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncUrl, setSyncUrl] = useState('');
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
-  const [versions, setVersions] = useState<Version[]>([
-    {
-      id: 'v1.0',
-      name: '1.8.8 Stable',
-      date: '2026-06-01',
-      size: '8.2 MB',
-      url: '#',
-    },
-    {
-      id: 'v1.1',
-      name: '1.8.8 Beta',
-      date: '2026-06-10',
-      size: '8.5 MB',
-      url: '#',
-    },
-  ]);
+  // Fetch client data (replace with real API / GitHub call)
+  const fetchClientData = useCallback(async () => {
+    if (!contentId) return;
 
-  const client: Client = useMemo(
-    () => ({
-      name: 'Example Client',
-      description:
-        'High-performance Eaglercraft client with advanced features.',
-      screenshots: [
-        'https://picsum.photos/id/1015/800/450',
-        'https://picsum.photos/id/106/800/450',
-        'https://picsum.photos/id/1074/800/450',
-      ],
-      docs: [
-        {
-          name: 'Installation Guide.md',
-          url: '#',
-        },
-        {
-          name: 'Changelog.txt',
-          url: '#',
-        },
-      ],
-      githubRelease:
-        'https://github.com/EaglercraftXLauncher/example-client/releases',
-    }),
-    []
-  );
+    setIsLoading(true);
+    setError(null);
 
-  const selectedVersion =
-    versions.find((v) => v.name === activeVersion) ?? versions[0];
+    try {
+      // TODO: Replace with real API call to your backend or GitHub
+      // Example: const res = await fetch(`/api/clients/${contentId}`);
+      
+      // Mock data for now - replace later
+      const mockData: ClientData = {
+        contentId: contentId,
+        name: "Example Optimized Client",
+        description: "High-performance Eaglercraft X client with better FPS, custom shaders, and improved multiplayer stability.",
+        githubRepo: "EaglercraftXLauncher/example-client",
+        githubReleaseUrl: `https://github.com/EaglercraftXLauncher/example-client/releases`,
+        versions: [
+          {
+            id: "v1.2",
+            name: "1.8.8-r2",
+            date: "2026-06-15",
+            size: "9.1 MB",
+            url: "#",
+            downloadCount: 1243
+          },
+          {
+            id: "v1.1",
+            name: "1.8.8-r1",
+            date: "2026-06-08",
+            size: "8.7 MB",
+            url: "#",
+            downloadCount: 875
+          },
+          {
+            id: "v1.0",
+            name: "1.8.8",
+            date: "2026-05-30",
+            size: "8.2 MB",
+            url: "#",
+            downloadCount: 2150
+          }
+        ],
+        screenshots: [
+          { id: "1", url: "https://picsum.photos/id/1015/1280/720", caption: "Main Menu" },
+          { id: "2", url: "https://picsum.photos/id/106/1280/720", caption: "In-game" },
+          { id: "3", url: "https://picsum.photos/id/1074/1280/720", caption: "Settings" },
+        ],
+        docs: [
+          { id: "1", name: "Installation Guide.md", url: "#", type: "markdown" },
+          { id: "2", name: "Changelog.md", url: "#", type: "markdown" },
+          { id: "3", name: "Troubleshooting.pdf", url: "#", type: "pdf" },
+        ],
+        lastUpdated: "2026-06-15T14:30:00Z",
+        autoSyncUrl: ""
+      };
+
+      setClient(mockData);
+      setActiveVersion(mockData.versions[0]?.name || '');
+      setSyncUrl(mockData.autoSyncUrl || '');
+    } catch (err) {
+      setError("Failed to load client details. Please try again.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [contentId]);
+
+  useEffect(() => {
+    fetchClientData();
+  }, [fetchClientData]);
 
   const handleVersionUploaded = (newVersion: Version) => {
-    setVersions((prev) => [newVersion, ...prev]);
+    if (!client) return;
+    setClient({
+      ...client,
+      versions: [newVersion, ...client.versions]
+    });
     setActiveVersion(newVersion.name);
   };
 
-  const handleSync = async () => {
-    const trimmed = syncUrl.trim();
+  const handleAutoSync = async () => {
+    if (!syncUrl || !client) return;
 
-    if (!trimmed) return;
-
+    setIsSyncing(true);
     try {
-      setIsSyncing(true);
-
-      // Replace with real API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      setSyncUrl('');
+      // TODO: Call your backend / Cloudflare Worker here
+      await new Promise(resolve => setTimeout(resolve, 1800)); // simulate network
+      
+      alert(`Successfully triggered auto-sync from:\n${syncUrl}`);
+      
+      // Refresh data after sync
+      fetchClientData();
+    } catch (err) {
+      alert("Sync failed. Please check the URL and try again.");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  if (!contentId) {
+  if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
-        <p className="text-red-400">Invalid client ID.</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <div className="flex flex-col items-center">
+          <RefreshCw className="w-10 h-10 animate-spin text-green-500 mb-4" />
+          <p className="text-gray-400">Loading client details...</p>
+        </div>
+      </div>
+    );
+  }
 
-        <Link
-          to="/"
-          className="mt-4 inline-flex text-green-400 hover:text-green-300"
-        >
-          ← Back to Browser
-        </Link>
+  if (error || !client) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-center">
+        <div>
+          <p className="text-red-400 mb-4">{error || "Client not found"}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-green-600 rounded-xl hover:bg-green-500"
+          >
+            Back to Browser
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-10">
+        <Link
+          to="/"
+          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to All Clients
+        </Link>
+        <div className="text-sm text-gray-500">Eaglercraft X Launcher</div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-10">
+        {/* Main Content */}
+        <div className="flex-1 space-y-10">
+          {/* Client Header */}
+          <div>
+            <div className="flex items-center gap-5 mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center text-5xl font-black shadow-xl">
+                E
+              </div>
+              <div>
+                <h1 className="text-5xl font-bold tracking-tighter">{client.name}</h1>
+                <p className="text-gray-500 mt-1">contentId: <span className="font-mono">{client.contentId}</span></p>
+              </div>
+            </div>
+            <p className="text-xl text-gray-300 leading-relaxed max-w-3xl">
+              {client.description}
+            </p>
+          </div>
+
+          {/* Versions */}
+          <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-semibold flex items-center gap-3">
+                <GitBranch className="w-8 h-8 text-green-400" />
+                Versions
+              </h2>
+              <button
+                onClick={() => setIsVersionModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add New Version
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {client.versions.map((version) => (
+                <button
+                  key={version.id}
+                  onClick={() => setActiveVersion(version.name)}
+                  className={`p-6 rounded-2xl border text-left transition-all group ${
+                    activeVersion === version.name
+                      ? 'border-green-500 bg-green-950/30'
+                      : 'border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-mono text-2xl font-semibold">{version.name}</div>
+                      <div className="text-gray-400 mt-1 text-sm">
+                        {version.date} • {version.size}
+                      </div>
+                    </div>
+                    {version.downloadCount && (
+                      <div className="text-xs text-gray-500">↓ {version.downloadCount}</div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-8 flex gap-4">
+              <a
+                href="#"
+                className="flex-1 bg-green-600 hover:bg-green-500 active:bg-green-700 transition-all text-white font-semibold py-5 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-lg shadow-green-900/50"
+              >
+                <Play className="w-6 h-6" />
+                LAUNCH {activeVersion}
+              </a>
+              <a
+                href="#"
+                className="flex-1 border border-gray-600 hover:bg-gray-800 transition-all font-semibold py-5 rounded-2xl flex items-center justify-center gap-3"
+              >
+                <Download className="w-6 h-6" />
+                DOWNLOAD
+              </a>
+            </div>
+          </div>
+
+          {/* Screenshots */}
+          <div>
+            <h2 className="text-3xl font-semibold mb-6 flex items-center gap-3">
+              <ImageIcon className="w-8 h-8" /> Screenshots
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {client.screenshots.map((shot) => (
+                <div key={shot.id} className="rounded-2xl overflow-hidden border border-gray-800 group">
+                  <img
+                    src={shot.url}
+                    alt={shot.caption}
+                    className="w-full aspect-video object-cover transition-transform group-hover:scale-105"
+                  />
+                  {shot.caption && (
+                    <div className="p-4 bg-gray-900 text-sm text-gray-400">
+                      {shot.caption}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Documentation */}
+          <div>
+            <h2 className="text-3xl font-semibold mb-6 flex items-center gap-3">
+              <FileText className="w-8 h-8" /> Documentation
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {client.docs.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={doc.url}
+                  target="_blank"
+                  className="flex items-center gap-4 p-6 bg-gray-900 border border-gray-800 rounded-2xl hover:border-green-600 group transition-colors"
+                >
+                  <FileText className="w-10 h-10 text-gray-400 group-hover:text-green-400" />
+                  <div>
+                    <div className="font-medium text-lg">{doc.name}</div>
+                    <div className="text-sm text-gray-500 capitalize">{doc.type}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="lg:w-96 flex-shrink-0">
+          <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 sticky top-8">
+            <h3 className="font-semibold text-xl mb-5">Auto Sync</h3>
+            <p className="text-gray-400 text-sm mb-5">
+              Automatically update this client’s main file from an external source.
+            </p>
+
+            <div className="space-y-4">
+              <input
+                type="url"
+                value={syncUrl}
+                onChange={(e) => setSyncUrl(e.target.value)}
+                placeholder="https://your-domain.com/latest/index.html"
+                className="w-full bg-black border border-gray-700 focus:border-green-500 rounded-2xl px-5 py-4 text-sm font-mono focus:outline-none"
+              />
+              <button
+                onClick={handleAutoSync}
+                disabled={isSyncing || !syncUrl}
+                className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 disabled:opacity-60 hover:from-green-500 hover:to-emerald-500 rounded-2xl font-semibold flex items-center justify-center gap-3 transition-all"
+              >
+                {isSyncing ? (
+                  <>Syncing <RefreshCw className="w-5 h-5 animate-spin" /></>
+                ) : (
+                  <>Trigger Auto Sync <RefreshCw className="w-5 h-5" /></>
+                )}
+              </button>
+            </div>
+
+            {client.githubReleaseUrl && (
+              <div className="mt-10 pt-6 border-t border-gray-800">
+                <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">GitHub Release</p>
+                <a
+                  href={client.githubReleaseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-400 hover:underline break-all text-sm"
+                >
+                  {client.githubReleaseUrl}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Version Upload Modal */}
       <VersionUploadModal
         isOpen={isVersionModalOpen}
         onClose={() => setIsVersionModalOpen(false)}
-        contentId={contentId}
+        contentId={client.contentId}
         onVersionUploaded={handleVersionUploaded}
       />
-
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
-        <Link
-          to="/"
-          className="inline-flex items-center text-green-400 hover:text-green-300"
-        >
-          ← Back to Browser
-        </Link>
-
-        {/* Header */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <h1 className="text-3xl font-bold">{client.name}</h1>
-
-          <p className="mt-3 text-zinc-400">
-            {client.description}
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 hover:bg-green-500"
-              disabled={!selectedVersion}
-            >
-              <Play size={18} />
-              Launch
-            </button>
-
-            {selectedVersion && (
-              <a
-                href={selectedVersion.url}
-                className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-800"
-              >
-                <Download size={18} />
-                Download
-              </a>
-            )}
-
-            <button
-              onClick={() => setIsVersionModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-800"
-            >
-              <Plus size={18} />
-              Upload Version
-            </button>
-          </div>
-        </section>
-
-        {/* Versions */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="mb-4 text-xl font-semibold">
-            Available Versions
-          </h2>
-
-          <div className="space-y-3">
-            {versions.map((version) => (
-              <button
-                key={version.id}
-                onClick={() => setActiveVersion(version.name)}
-                className={`w-full rounded-xl border p-4 text-left transition ${
-                  activeVersion === version.name
-                    ? 'border-green-500 bg-zinc-800'
-                    : 'border-zinc-800 hover:bg-zinc-800'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">
-                    {version.name}
-                  </span>
-
-                  <span className="text-sm text-zinc-400">
-                    {version.size}
-                  </span>
-                </div>
-
-                <div className="mt-2 text-sm text-zinc-500">
-                  Released {version.date}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Sync */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-            <RefreshCw size={20} />
-            Auto Sync
-          </h2>
-
-          <div className="flex flex-col gap-3 md:flex-row">
-            <input
-              type="url"
-              value={syncUrl}
-              onChange={(e) => setSyncUrl(e.target.value)}
-              placeholder="GitHub release URL..."
-              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2 outline-none focus:border-green-500"
-            />
-
-            <button
-              onClick={handleSync}
-              disabled={isSyncing}
-              className="rounded-lg bg-green-600 px-5 py-2 disabled:opacity-50"
-            >
-              {isSyncing ? 'Syncing...' : 'Sync'}
-            </button>
-          </div>
-        </section>
-
-        {/* Screenshots */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-            <ImageIcon size={20} />
-            Screenshots
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {client.screenshots.map((src) => (
-              <img
-                key={src}
-                src={src}
-                alt={client.name}
-                loading="lazy"
-                className="aspect-video rounded-xl object-cover"
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Documentation */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-            <FileText size={20} />
-            Documentation
-          </h2>
-
-          <div className="space-y-2">
-            {client.docs.map((doc) => (
-              <a
-                key={doc.name}
-                href={doc.url}
-                className="block rounded-lg border border-zinc-800 p-3 hover:bg-zinc-800"
-              >
-                {doc.name}
-              </a>
-            ))}
-          </div>
-        </section>
-
-        {/* GitHub */}
-        {client.githubRelease && (
-          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-              <GitBranch size={20} />
-              GitHub Releases
-            </h2>
-
-            <a
-              href={client.githubRelease}
-              target="_blank"
-              rel="noreferrer"
-              className="text-green-400 hover:text-green-300"
-            >
-              Open Releases →
-            </a>
-          </section>
-        )}
-      </div>
-    </>
+    </div>
   );
-}
+};
+
+export default ClientDetailPage;
