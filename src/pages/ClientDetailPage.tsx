@@ -2,8 +2,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
-  Play, Download, RefreshCw, Image as ImageIcon, 
-  FileText, GitBranch, Clock, Plus, ArrowLeft 
+  Play, 
+  Download, 
+  RefreshCw, 
+  Image as ImageIcon, 
+  FileText, 
+  GitBranch, 
+  Plus, 
+  ArrowLeft 
 } from 'lucide-react';
 import VersionUploadModal from '../components/VersionUploadModal';
 
@@ -54,7 +60,6 @@ const ClientDetailPage = () => {
   const [syncUrl, setSyncUrl] = useState('');
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
-  // Fetch client data (replace with real API / GitHub call)
   const fetchClientData = useCallback(async () => {
     if (!contentId) return;
 
@@ -62,10 +67,7 @@ const ClientDetailPage = () => {
     setError(null);
 
     try {
-      // TODO: Replace with real API call to your backend or GitHub
-      // Example: const res = await fetch(`/api/clients/${contentId}`);
-      
-      // Mock data for now - replace later
+      // TODO: Replace this mock with real API / GitHub fetch
       const mockData: ClientData = {
         contentId: contentId,
         name: "Example Optimized Client",
@@ -141,15 +143,13 @@ const ClientDetailPage = () => {
 
     setIsSyncing(true);
     try {
-      // TODO: Call your backend / Cloudflare Worker here
-      await new Promise(resolve => setTimeout(resolve, 1800)); // simulate network
+      // TODO: Replace with real backend / Cloudflare Worker call
+      await new Promise(resolve => setTimeout(resolve, 1600));
       
-      alert(`Successfully triggered auto-sync from:\n${syncUrl}`);
-      
-      // Refresh data after sync
-      fetchClientData();
+      alert(`Auto-sync triggered successfully from:\n${syncUrl}`);
+      fetchClientData(); // Refresh after sync
     } catch (err) {
-      alert("Sync failed. Please check the URL and try again.");
+      alert("Sync failed. Please check the URL.");
     } finally {
       setIsSyncing(false);
     }
@@ -168,14 +168,14 @@ const ClientDetailPage = () => {
 
   if (error || !client) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-center px-6">
         <div>
-          <p className="text-red-400 mb-4">{error || "Client not found"}</p>
+          <p className="text-red-400 mb-6 text-lg">{error || "Client not found"}</p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-green-600 rounded-xl hover:bg-green-500"
+            className="px-8 py-3 bg-green-600 hover:bg-green-500 rounded-2xl font-medium"
           >
-            Back to Browser
+            ← Back to Browser
           </button>
         </div>
       </div>
@@ -193,21 +193,21 @@ const ClientDetailPage = () => {
           <ArrowLeft className="w-5 h-5" />
           Back to All Clients
         </Link>
-        <div className="text-sm text-gray-500">Eaglercraft X Launcher</div>
+        <div className="text-sm text-gray-500 font-medium">Eaglercraft X Launcher</div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-10">
         {/* Main Content */}
-        <div className="flex-1 space-y-10">
+        <div className="flex-1 space-y-12">
           {/* Client Header */}
           <div>
             <div className="flex items-center gap-5 mb-6">
-              <div className="w-20 h-20 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center text-5xl font-black shadow-xl">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center text-5xl font-black shadow-2xl">
                 E
               </div>
               <div>
                 <h1 className="text-5xl font-bold tracking-tighter">{client.name}</h1>
-                <p className="text-gray-500 mt-1">contentId: <span className="font-mono">{client.contentId}</span></p>
+                <p className="text-gray-500 mt-1 font-mono">contentId: {client.contentId}</p>
               </div>
             </div>
             <p className="text-xl text-gray-300 leading-relaxed max-w-3xl">
@@ -215,7 +215,7 @@ const ClientDetailPage = () => {
             </p>
           </div>
 
-          {/* Versions */}
+          {/* Versions Section */}
           <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-semibold flex items-center gap-3">
@@ -224,7 +224,7 @@ const ClientDetailPage = () => {
               </h2>
               <button
                 onClick={() => setIsVersionModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium transition-all"
               >
                 <Plus className="w-5 h-5" />
                 Add New Version
@@ -250,7 +250,7 @@ const ClientDetailPage = () => {
                       </div>
                     </div>
                     {version.downloadCount && (
-                      <div className="text-xs text-gray-500">↓ {version.downloadCount}</div>
+                      <div className="text-xs text-gray-500">↓ {version.downloadCount.toLocaleString()}</div>
                     )}
                   </div>
                 </button>
@@ -309,6 +309,7 @@ const ClientDetailPage = () => {
                   key={doc.id}
                   href={doc.url}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="flex items-center gap-4 p-6 bg-gray-900 border border-gray-800 rounded-2xl hover:border-green-600 group transition-colors"
                 >
                   <FileText className="w-10 h-10 text-gray-400 group-hover:text-green-400" />
@@ -322,12 +323,12 @@ const ClientDetailPage = () => {
           </div>
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar - Auto Sync */}
         <div className="lg:w-96 flex-shrink-0">
           <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 sticky top-8">
             <h3 className="font-semibold text-xl mb-5">Auto Sync</h3>
             <p className="text-gray-400 text-sm mb-5">
-              Automatically update this client’s main file from an external source.
+              Provide a URL to automatically sync the latest game files.
             </p>
 
             <div className="space-y-4">
@@ -340,7 +341,7 @@ const ClientDetailPage = () => {
               />
               <button
                 onClick={handleAutoSync}
-                disabled={isSyncing || !syncUrl}
+                disabled={isSyncing || !syncUrl.trim()}
                 className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 disabled:opacity-60 hover:from-green-500 hover:to-emerald-500 rounded-2xl font-semibold flex items-center justify-center gap-3 transition-all"
               >
                 {isSyncing ? (
