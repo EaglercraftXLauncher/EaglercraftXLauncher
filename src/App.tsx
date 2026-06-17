@@ -37,10 +37,10 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <NavLink to="/" className="sidebar-logo">
-        <div className="sidebar-logo-mark">EX</div>
+        <div className="sidebar-logo-mark">EXL</div>
         <div>
-          <div className="sidebar-logo-name">EagXL</div>
-          <div className="sidebar-logo-sub">Launcher Hub</div>
+          <div className="sidebar-logo-name">Eaglercraft X</div>
+          <div className="sidebar-logo-sub">Launcher</div>
         </div>
       </NavLink>
 
