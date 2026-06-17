@@ -22,8 +22,8 @@ const AuthPage: React.FC = () => {
     <div className="auth-page">
       <div className="auth-card">
         <div>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: 14, color: '#fff', margin: '0 auto 16px' }}>EX</div>
-          <div className="auth-title">EagXLauncher</div>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: 14, color: '#fff', margin: '0 auto 16px' }}>EXL</div>
+          <div className="auth-title">EaglercraftXLauncher</div>
           <div className="auth-sub" style={{ marginTop: 6 }}>Sign in to upload and manage content</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
