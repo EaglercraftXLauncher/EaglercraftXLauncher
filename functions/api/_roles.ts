@@ -18,8 +18,8 @@ import { ok, fail, sessionUser, nanoid } from "./_utils";
 // Answers are stored in env vars: DEV_QUESTION_1/2/3
 const DEV_QUESTION_PROMPTS = [
   "What file extension do all Eaglercraft clients use? (lowercase, no dot)",
+  "What technology is used to Compile Eaglercraft?",
   "What is the username of the owner/creator of Eaglercraft and EagTek?",
-  "What does EPK stand for in the Eaglercraft ecosystem?",
 ];
 
 // ── Owner claim ───────────────────────────────────────────────
