@@ -1,10 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import UploadModal from '../components/UploadModal';
-import type { ContentEntry, ContentKind } from '../types';
+import type { ContentKind } from '../types';
 
-interface BrowserPageProps { kind: ContentKind }
+interface IndexEntry {
+  contentId:   string;
+  kind:        ContentKind;
+  name:        string;
+  author:      string;
+  faviconUrl:  string;
+  posterUrl:   string;
+  description: string;
+  uploaderUid: string;
+  createdAt:   string;
+  latestTag:   string | null;
+}
 
 const API = '/api';
 const PAGE_SIZE = 24;
@@ -22,17 +34,13 @@ const UploadIcon = () => (
 );
 const TrashIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-  </svg>
-);
-const ExternalIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
   </svg>
 );
 
-export default function BrowserPage({ kind }: BrowserPageProps) {
-  const [items,       setItems]       = useState<ContentEntry[]>([]);
+export default function BrowserPage({ kind }: { kind: ContentKind }) {
+  const [items,       setItems]       = useState<IndexEntry[]>([]);
   const [total,       setTotal]       = useState(0);
   const [loading,     setLoading]     = useState(true);
   const [page,        setPage]        = useState(1);
@@ -41,6 +49,7 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
   const [showUpload,  setShowUpload]  = useState(false);
   const { user, token } = useAuth();
   const { addToast }    = useToast();
+  const navigate        = useNavigate();
 
   const title     = kind === 'client' ? 'Clients' : kind === 'mod' ? 'Mods' : 'Skins';
   const endpoint  = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
@@ -52,13 +61,10 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
     try {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String((page - 1) * PAGE_SIZE) });
       if (search) params.set('q', search);
-      const res = await fetch(`${API}/${endpoint}?${params}`);
-      if (res.ok) {
-        const json = await res.json() as { data?: { items: ContentEntry[]; total: number } } & { items: ContentEntry[]; total: number };
-        const data = json.data ?? json;
-        setItems(data.items ?? []);
-        setTotal(data.total ?? 0);
-      } else { addToast('Failed to load content', 'error'); }
+      const res  = await fetch(`${API}/${endpoint}?${params}`);
+      const json = await res.json() as { ok: boolean; data?: { items: IndexEntry[]; total: number } };
+      if (json.ok && json.data) { setItems(json.data.items); setTotal(json.data.total); }
+      else addToast('Failed to load content', 'error');
     } catch { addToast('Network error', 'error'); }
     finally { setLoading(false); }
   }, [endpoint, search, page]);
@@ -67,9 +73,8 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
 
   const handleDelete = async (contentId: string, name: string) => {
     if (!confirm(`Permanently delete "${name}"? This removes the GitHub release too.`)) return;
-    const res = await fetch(`${API}/${endpoint}/${contentId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+    const res  = await fetch(`${API}/${endpoint}/${contentId}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json() as { ok: boolean; error?: string };
     if (json.ok) { addToast('Deleted', 'success'); fetchItems(); }
@@ -80,7 +85,6 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
 
   return (
     <div className="browser-page">
-      {/* Topbar */}
       <div className="topbar">
         <h1 className="topbar-title">{title}</h1>
         {canUpload && (
@@ -90,7 +94,8 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
             <UploadIcon /> Publish {title.slice(0, -1)}
           </button>
         )}
-        <form className="topbar-search" onSubmit={e => { e.preventDefault(); setSearch(searchInput); setPage(1); }}
+        <form className="topbar-search"
+          onSubmit={e => { e.preventDefault(); setSearch(searchInput); setPage(1); }}
           style={{ marginLeft: canUpload ? 0 : 'auto' }}>
           <SearchIcon />
           <input type="text" placeholder={`Search ${title.toLowerCase()}…`}
@@ -100,14 +105,14 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
 
       <div className="page-content">
         {total > 0 && (
-          <p style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--font-mono)', marginBottom: 16 }}>
-            {total} item{total !== 1 ? 's' : ''}
+          <p style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--font-mono)', marginBottom: 18 }}>
+            {total} {title.toLowerCase()}
           </p>
         )}
 
         {loading ? (
           <div className="cards-grid">
-            {Array.from({ length: 12 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 220 }} />)}
+            {Array.from({ length: 12 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 230 }} />)}
           </div>
         ) : items.length === 0 ? (
           <div className="empty">
@@ -118,15 +123,28 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
         ) : (
           <div className="cards-grid">
             {items.map(item => (
-              <div key={item.contentId} className="content-card">
+              <div key={item.contentId} className="content-card"
+                onClick={() => navigate(`/${endpoint}/${item.contentId}`)}
+                style={{ cursor: 'pointer' }}>
                 <div className="content-card-img">
                   {item.posterUrl
-                    ? <img src={item.posterUrl} alt={item.name} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ? <img src={item.posterUrl} alt={item.name}
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     : <span>{item.name[0]?.toUpperCase()}</span>}
                   {item.faviconUrl && (
-                    <img src={item.faviconUrl} alt=""
-                      style={{ position: 'absolute', bottom: 8, left: 8, width: 24, height: 24, borderRadius: 6, border: '1px solid var(--border2)', background: 'var(--surface)' }}
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <img src={item.faviconUrl} alt="" style={{
+                      position: 'absolute', bottom: 8, left: 8,
+                      width: 24, height: 24, borderRadius: 6,
+                      border: '1px solid var(--border2)', background: 'var(--surface)',
+                    }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  {item.latestTag && (
+                    <span style={{
+                      position: 'absolute', top: 8, right: 8,
+                      fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                      background: 'rgba(0,0,0,0.6)', color: '#fff',
+                      padding: '2px 7px', borderRadius: 4,
+                    }}>{item.latestTag}</span>
                   )}
                 </div>
                 <div className="content-card-body">
@@ -138,23 +156,15 @@ export default function BrowserPage({ kind }: BrowserPageProps) {
                     <div className="content-card-avatar" />
                     <span>{item.author}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <a className="btn btn-ghost btn-sm" href={`${API}/content/${item.contentId}/file`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', fontSize: 11 }}
-                      onClick={e => e.stopPropagation()}>
-                      <ExternalIcon /> Open
-                    </a>
-                    {canDelete && (
-                      <button onClick={() => handleDelete(item.contentId, item.name)}
-                        title="Delete"
-                        style={{ background: 'var(--red-dim)', border: 'none', borderRadius: 5,
-                          padding: '4px 7px', cursor: 'pointer', color: 'var(--red)',
-                          display: 'flex', alignItems: 'center' }}>
-                        <TrashIcon />
-                      </button>
-                    )}
-                  </div>
+                  {canDelete && (
+                    <button onClick={e => { e.stopPropagation(); handleDelete(item.contentId, item.name); }}
+                      title="Delete"
+                      style={{ background: 'var(--red-dim)', border: 'none', borderRadius: 5,
+                        padding: '4px 7px', cursor: 'pointer', color: 'var(--red)',
+                        display: 'flex', alignItems: 'center' }}>
+                      <TrashIcon />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
