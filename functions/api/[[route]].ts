@@ -94,7 +94,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       if (method === "POST") return triggerSync(req, env, syncMatch[2]);
     }
 
-    // ── Asset proxy: /content/:id/asset?path=versions/v1.0.html ─
+    // ── Asset proxy: /content/:id/asset?path=versions.v1.0.html ─
     const assetMatch = path.match(/^\/content\/([^/]+)\/asset$/);
     if (assetMatch && method === "GET") {
       const assetPath = new URL(req.url).searchParams.get("path");
