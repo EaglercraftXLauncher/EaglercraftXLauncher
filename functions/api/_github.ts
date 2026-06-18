@@ -29,6 +29,14 @@ const INDEX_FILE: Record<ContentKind, string> = {
 
 function branch(env: Env): string { return env.CDN_REPO_BRANCH?.trim() || "main"; }
 
+function versionAssetFilename(tag: string, ext: string): string {
+  return `versions.${tag}.${ext}`;
+}
+
+function docAssetFilename(docName: string): string {
+  return `docs.${docName.replace(/[^a-zA-Z0-9._-]/g, "_")}.md`;
+}
+
 function ghHeaders(pat: string): Record<string, string> {
   return {
     Authorization: `Bearer ${pat}`,
@@ -165,7 +173,7 @@ export async function createContent(env: Env, manifest: ClientManifest, fileData
   try {
     await uploadAsset(env, releaseId, "readme.md", "text/markdown",
       readmeText || `# ${manifest.name}\nBy ${manifest.author}\n\n${manifest.description}`);
-    const versionFilename = `versions/${manifest.versions[0].tag}.${fileExt}`;
+    const versionFilename = versionAssetFilename(manifest.versions[0].tag, fileExt);
     await uploadAsset(env, releaseId, versionFilename, fileMime, fileData);
     manifest.versions[0].filename = versionFilename;
     await uploadAsset(env, releaseId, "metadata.json", "application/json", JSON.stringify(manifest, null, 2));
@@ -186,7 +194,7 @@ export async function createContent(env: Env, manifest: ClientManifest, fileData
 export async function addVersion(env: Env, contentId: string, version: ContentVersion, fileData: ArrayBuffer, fileExt: string, fileMime: string): Promise<ClientManifest> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
-  const filename = `versions/${version.tag}.${fileExt}`;
+  const filename = versionAssetFilename(version.tag, fileExt);
   const existing = release.assets.find(a => a.name === filename);
   if (existing) await deleteAsset(env, existing.id);
   await uploadAsset(env, release.id, filename, fileMime, fileData);
@@ -217,7 +225,7 @@ export async function addScreenshot(env: Env, contentId: string, fileData: Array
 export async function addDoc(env: Env, contentId: string, docName: string, content: string): Promise<void> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
-  const filename = `docs/${docName.replace(/[^a-zA-Z0-9._-]/g, "_")}.md`;
+  const filename = docAssetFilename(docName);
   const existing = release.assets.find(a => a.name === filename);
   if (existing) await deleteAsset(env, existing.id);
   await uploadAsset(env, release.id, filename, "text/markdown", content);
@@ -261,7 +269,7 @@ export async function runAutoSync(env: Env, contentId: string): Promise<{ ok: bo
   const urlExt   = sourceUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "html";
   const ext      = ["html","js","png","jpg","gif","webp"].includes(urlExt) ? urlExt : "html";
   const mime     = remoteRes.headers.get("content-type")?.split(";")[0] ?? "text/html";
-  const filename = `versions/${versionTag}.${ext}`;
+  const filename = versionAssetFilename(versionTag, ext);
   const old = release.assets.find(a => a.name === filename);
   if (old) await deleteAsset(env, old.id);
   await uploadAsset(env, release.id, filename, mime, fileData);
@@ -277,7 +285,11 @@ export async function runAutoSync(env: Env, contentId: string): Promise<{ ok: bo
 export async function proxyAsset(env: Env, contentId: string, assetFilename: string): Promise<Response | null> {
   const release = await getRelease(env, contentId);
   if (!release) return null;
-  const asset = release.assets.find(a => a.name === assetFilename);
+  const dotAssetFilename = assetFilename.replace(/^(versions|docs)\//, "$1.");
+  const slashAssetFilename = assetFilename.replace(/^(versions|docs)\./, "$1/");
+  const asset = release.assets.find(a => a.name === assetFilename)
+    ?? release.assets.find(a => a.name === dotAssetFilename)
+    ?? release.assets.find(a => a.name === slashAssetFilename);
   if (!asset) return null;
   const res = await proxyFetch(env, asset.url);
   if (!res) return null;
