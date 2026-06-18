@@ -47,7 +47,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (path === "/roles/dev-questions"   && method === "GET")  return getDevQuestions(req, env);
     if (path === "/roles/admin-passes"    && method === "POST") return generateAdminPass(req, env);
     if (path === "/roles/admin-passes"    && method === "GET")  return listAdminPasses(req, env);
-    const passRevoke = path.match(/^\/roles\/admin-passes\/([a-z0-9]+)$/);
+    const passRevoke = path.match(/^\/roles\/admin-passes\/([A-Za-z0-9]+)$/);
     if (passRevoke && method === "DELETE") return revokeAdminPass(req, env, passRevoke[1]);
 
     // ── Users ─────────────────────────────────────────────────
