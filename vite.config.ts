@@ -1,35 +1,20 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import Sitemap from "vite-plugin-sitemap"; // Added this missing import
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [
-    react(),
-    Sitemap({
-      hostname: "https://eaglercraft2ck.pages.dev",
-      generateRobotsTxt: false
-    })
-  ],
+  plugins: [react()],
   server: {
-    port: 5173,
+    port: 3000,
     proxy: {
-      "/api": {
-        target: "http://localhost:8788",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, "/api"),
-      },
+      '/api': { target: 'http://localhost:8788', changeOrigin: true },
     },
   },
   build: {
-    outDir: "dist",
+    outDir: 'dist',
     sourcemap: false,
-    minify: "esbuild",
+    minify: 'terser',
     rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-        },
-      },
+      output: { manualChunks: { vendor: ['react', 'react-dom', 'react-router-dom'] } },
     },
   },
 });
