@@ -127,7 +127,7 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
               <input className="form-input" placeholder="https://…" value={posterUrl} onChange={e => setPosterUrl(e.target.value)} />
             </Field>
           </div>
-          <Field label="Banner URL" hint="Wide image or video shown at top of detail page">
+          <Field label="Banner URL" hint="Wide image, video file, or embed URL shown at top of detail page">
             <input className="form-input" placeholder="https://…" value={bannerUrl} onChange={e => setBannerUrl(e.target.value)} />
           </Field>
           <Field label="Tags" hint="Comma separated">

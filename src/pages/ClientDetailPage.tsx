@@ -35,6 +35,23 @@ const BackIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="non
 const isVideoUrl = (url: string) =>
   /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(url);
 
+const isVideoEmbedUrl = (url: string) =>
+  /^https?:\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/embed\/|player\.vimeo\.com\/video\/)/i.test(url);
+
+const playableEmbedUrl = (url: string) => {
+  const embed = new URL(url);
+
+  if (/youtube(?:-nocookie)?\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
+    embed.searchParams.set('mute', embed.searchParams.get('mute') ?? '1');
+  }
+
+  if (/player\.vimeo\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
+    embed.searchParams.set('muted', embed.searchParams.get('muted') ?? '1');
+  }
+
+  return embed.toString();
+};
+
 export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
   const { contentId } = useParams<{ contentId: string }>();
   const navigate = useNavigate();
@@ -210,7 +227,15 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
       {/* Banner */}
       {manifest.bannerUrl && (
         <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative', background: '#000' }}>
-          {isVideoUrl(manifest.bannerUrl) ? (
+          {isVideoEmbedUrl(manifest.bannerUrl) ? (
+            <iframe
+              src={playableEmbedUrl(manifest.bannerUrl)}
+              title={`${manifest.name} banner video`}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+              allowFullScreen
+            />
+          ) : isVideoUrl(manifest.bannerUrl) ? (
             <video
               src={manifest.bannerUrl}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
