@@ -167,7 +167,7 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
     setViewingDoc(filename);
     setDocText('Loading…');
     try {
-      const res = await fetch(`${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`);
+      const res = await fetch(`${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`);
       setDocText(await res.text());
     } catch { setDocText('Failed to load document.'); }
   };
@@ -206,7 +206,7 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
 
   // ── Asset URL ───────────────────────────────────────────────
   const assetPath = (filename: string) =>
-    filename.replace(/^versions\//, 'versions.');
+    filename.replace(/^(versions|docs)\//, '$1.');
 
   const assetUrl = (filename: string) =>
     `${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`;
@@ -441,7 +441,7 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
                 {manifest.docs.length === 0 && !canEdit && <div className="empty"><h3>No docs yet</h3></div>}
                 {manifest.docs.map(d => (
                   <div key={d} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace('docs/', '')}</span>
+                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace(/^docs[/.]/, '')}</span>
                     <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
                   </div>
                 ))}
