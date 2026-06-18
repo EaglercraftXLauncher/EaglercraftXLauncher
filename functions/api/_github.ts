@@ -29,6 +29,19 @@ const INDEX_FILE: Record<ContentKind, string> = {
 
 function branch(env: Env): string { return env.CDN_REPO_BRANCH?.trim() || "main"; }
 
+function versionAssetFilename(tag: string, ext: string): string {
+  return `versions.${tag}.${ext}`;
+}
+
+function docAssetFilename(docName: string): string {
+  const base = docName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `docs.${base}.md`;
+}
+
+function screenshotAssetFilename(ext: string): string {
+  return `screenshots.${Date.now()}.${ext}`;
+}
+
 function ghHeaders(pat: string): Record<string, string> {
   return {
     Authorization: `Bearer ${pat}`,
@@ -165,7 +178,7 @@ export async function createContent(env: Env, manifest: ClientManifest, fileData
   try {
     await uploadAsset(env, releaseId, "readme.md", "text/markdown",
       readmeText || `# ${manifest.name}\nBy ${manifest.author}\n\n${manifest.description}`);
-    const versionFilename = `versions/${manifest.versions[0].tag}.${fileExt}`;
+    const versionFilename = versionAssetFilename(manifest.versions[0].tag, fileExt);
     await uploadAsset(env, releaseId, versionFilename, fileMime, fileData);
     manifest.versions[0].filename = versionFilename;
     await uploadAsset(env, releaseId, "metadata.json", "application/json", JSON.stringify(manifest, null, 2));
@@ -186,7 +199,7 @@ export async function createContent(env: Env, manifest: ClientManifest, fileData
 export async function addVersion(env: Env, contentId: string, version: ContentVersion, fileData: ArrayBuffer, fileExt: string, fileMime: string): Promise<ClientManifest> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
-  const filename = `versions/${version.tag}.${fileExt}`;
+  const filename = versionAssetFilename(version.tag, fileExt);
   const existing = release.assets.find(a => a.name === filename);
   if (existing) await deleteAsset(env, existing.id);
   await uploadAsset(env, release.id, filename, fileMime, fileData);
@@ -204,7 +217,7 @@ export async function addVersion(env: Env, contentId: string, version: ContentVe
 export async function addScreenshot(env: Env, contentId: string, fileData: ArrayBuffer, fileExt: string, fileMime: string): Promise<string> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
-  const filename = `screenshots/${Date.now()}.${fileExt}`;
+  const filename = screenshotAssetFilename(fileExt);
   await uploadAsset(env, release.id, filename, fileMime, fileData);
   const manifest = await getManifest(env, contentId);
   if (!manifest) throw new Error("Manifest not found");
@@ -217,7 +230,7 @@ export async function addScreenshot(env: Env, contentId: string, fileData: Array
 export async function addDoc(env: Env, contentId: string, docName: string, content: string): Promise<void> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
-  const filename = `docs/${docName.replace(/[^a-zA-Z0-9._-]/g, "_")}.md`;
+  const filename = docAssetFilename(docName);
   const existing = release.assets.find(a => a.name === filename);
   if (existing) await deleteAsset(env, existing.id);
   await uploadAsset(env, release.id, filename, "text/markdown", content);
@@ -226,6 +239,100 @@ export async function addDoc(env: Env, contentId: string, docName: string, conte
   if (!manifest.docs.includes(filename)) manifest.docs.push(filename);
   manifest.updatedAt = new Date().toISOString();
   await saveManifest(env, release.id, manifest, release.assets);
+}
+
+
+export async function updateContentMetadata(env: Env, contentId: string, updates: Partial<Pick<ClientManifest, "name" | "description" | "faviconUrl" | "posterUrl" | "bannerUrl" | "tags">>): Promise<ClientManifest> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  if (updates.name !== undefined) manifest.name = updates.name.slice(0, 100);
+  if (updates.description !== undefined) manifest.description = updates.description.slice(0, 1000);
+  if (updates.faviconUrl !== undefined) manifest.faviconUrl = updates.faviconUrl;
+  if (updates.posterUrl !== undefined) manifest.posterUrl = updates.posterUrl;
+  if (updates.bannerUrl !== undefined) manifest.bannerUrl = updates.bannerUrl;
+  if (updates.tags !== undefined) manifest.tags = updates.tags.slice(0, 15);
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+  await updateIndexEntry(env, manifest.kind, contentId, {
+    name: manifest.name, description: manifest.description, faviconUrl: manifest.faviconUrl,
+    posterUrl: manifest.posterUrl,
+  });
+  return manifest;
+}
+
+export async function updateVersionMetadata(env: Env, contentId: string, oldTag: string, updates: Partial<Pick<ContentVersion, "tag" | "label" | "changelog" | "isLatest">>): Promise<ClientManifest> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  const version = manifest.versions.find(v => v.tag === oldTag);
+  if (!version) throw new Error("Version not found");
+  if (updates.tag !== undefined) version.tag = updates.tag.slice(0, 80);
+  if (updates.label !== undefined) version.label = updates.label.slice(0, 80);
+  if (updates.changelog !== undefined) version.changelog = updates.changelog.slice(0, 2000);
+  if (updates.isLatest) manifest.versions = manifest.versions.map(v => ({ ...v, isLatest: v === version }));
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+  await updateIndexEntry(env, manifest.kind, contentId, { latestTag: manifest.versions.find(v => v.isLatest)?.tag ?? manifest.versions[0]?.tag ?? null });
+  return manifest;
+}
+
+export async function deleteVersion(env: Env, contentId: string, tag: string): Promise<ClientManifest> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  if (manifest.versions.length <= 1) throw new Error("Cannot delete the only version");
+  const version = manifest.versions.find(v => v.tag === tag);
+  if (!version) throw new Error("Version not found");
+  const dotName = version.filename.replace(/^versions\//, "versions.");
+  const slashName = version.filename.replace(/^versions\./, "versions/");
+  for (const asset of release.assets.filter(a => a.name === version.filename || a.name === dotName || a.name === slashName)) {
+    await deleteAsset(env, asset.id);
+  }
+  manifest.versions = manifest.versions.filter(v => v !== version);
+  if (!manifest.versions.some(v => v.isLatest)) manifest.versions[0].isLatest = true;
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+  await updateIndexEntry(env, manifest.kind, contentId, { latestTag: manifest.versions.find(v => v.isLatest)?.tag ?? null });
+  return manifest;
+}
+
+export async function updateDoc(env: Env, contentId: string, oldFilename: string, docName: string, content: string): Promise<ClientManifest> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  const filename = docAssetFilename(docName);
+  const oldDot = oldFilename.replace(/^docs\//, "docs.");
+  const oldSlash = oldFilename.replace(/^docs\./, "docs/");
+  for (const asset of release.assets.filter(a => a.name === oldFilename || a.name === oldDot || a.name === oldSlash || a.name === filename)) {
+    await deleteAsset(env, asset.id);
+  }
+  await uploadAsset(env, release.id, filename, "text/markdown", content);
+  manifest.docs = manifest.docs.filter(d => d !== oldFilename && d !== oldDot && d !== oldSlash);
+  manifest.docs.push(filename);
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+  return manifest;
+}
+
+export async function deleteDoc(env: Env, contentId: string, filename: string): Promise<ClientManifest> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  const dotName = filename.replace(/^docs\//, "docs.");
+  const slashName = filename.replace(/^docs\./, "docs/");
+  for (const asset of release.assets.filter(a => a.name === filename || a.name === dotName || a.name === slashName)) {
+    await deleteAsset(env, asset.id);
+  }
+  manifest.docs = manifest.docs.filter(d => d !== filename && d !== dotName && d !== slashName);
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+  return manifest;
 }
 
 export async function setAutoSync(env: Env, contentId: string, config: AutoSyncConfig | null): Promise<void> {
@@ -261,7 +368,7 @@ export async function runAutoSync(env: Env, contentId: string): Promise<{ ok: bo
   const urlExt   = sourceUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "html";
   const ext      = ["html","js","png","jpg","gif","webp"].includes(urlExt) ? urlExt : "html";
   const mime     = remoteRes.headers.get("content-type")?.split(";")[0] ?? "text/html";
-  const filename = `versions/${versionTag}.${ext}`;
+  const filename = versionAssetFilename(versionTag, ext);
   const old = release.assets.find(a => a.name === filename);
   if (old) await deleteAsset(env, old.id);
   await uploadAsset(env, release.id, filename, mime, fileData);
@@ -277,7 +384,11 @@ export async function runAutoSync(env: Env, contentId: string): Promise<{ ok: bo
 export async function proxyAsset(env: Env, contentId: string, assetFilename: string): Promise<Response | null> {
   const release = await getRelease(env, contentId);
   if (!release) return null;
-  const asset = release.assets.find(a => a.name === assetFilename);
+  const dotAssetFilename = assetFilename.replace(/^(versions|docs|screenshots)\//, "$1.");
+  const slashAssetFilename = assetFilename.replace(/^(versions|docs|screenshots)\./, "$1/");
+  const asset = release.assets.find(a => a.name === assetFilename)
+    ?? release.assets.find(a => a.name === dotAssetFilename)
+    ?? release.assets.find(a => a.name === slashAssetFilename);
   if (!asset) return null;
   const res = await proxyFetch(env, asset.url);
   if (!res) return null;

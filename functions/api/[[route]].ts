@@ -4,7 +4,8 @@ import { preflight, fail } from "./_utils";
 import { newOAuthState, googleLoginUrl, githubLoginUrl, googleCallback, githubCallback } from "./_auth";
 import {
   browse, create, getDetail, uploadVersion, uploadScreenshot,
-  uploadDoc, updateAutoSync, triggerSync, serveAsset, hardDelete,
+  uploadDoc, updateContent, updateVersion, removeVersion, editDoc, removeDoc,
+  updateAutoSync, triggerSync, serveAsset, hardDelete,
 } from "./_content";
 import { getPublicUser, listUsers, getMe, updateMe, logout, banUser, unbanUser } from "./_users";
 import {
@@ -47,7 +48,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (path === "/roles/dev-questions"   && method === "GET")  return getDevQuestions(req, env);
     if (path === "/roles/admin-passes"    && method === "POST") return generateAdminPass(req, env);
     if (path === "/roles/admin-passes"    && method === "GET")  return listAdminPasses(req, env);
-    const passRevoke = path.match(/^\/roles\/admin-passes\/([a-z0-9]+)$/);
+    const passRevoke = path.match(/^\/roles\/admin-passes\/([A-Za-z0-9]+)$/);
     if (passRevoke && method === "DELETE") return revokeAdminPass(req, env, passRevoke[1]);
 
     // ── Users ─────────────────────────────────────────────────
@@ -72,12 +73,16 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       const kind      = KIND_MAP[entryMatch[1]];
       const contentId = entryMatch[2];
       if (method === "GET")    return getDetail(req, env, contentId);
+      if (method === "PATCH")  return updateContent(req, env, contentId);
       if (method === "DELETE") return hardDelete(req, env, kind, contentId);
     }
 
     // ── Versions ──────────────────────────────────────────────
     const verMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/versions$/);
     if (verMatch && method === "POST") return uploadVersion(req, env, verMatch[2]);
+    const versionItemMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/versions\/([^/]+)$/);
+    if (versionItemMatch && method === "PATCH") return updateVersion(req, env, versionItemMatch[2], versionItemMatch[3]);
+    if (versionItemMatch && method === "DELETE") return removeVersion(req, env, versionItemMatch[2], versionItemMatch[3]);
 
     // ── Screenshots ───────────────────────────────────────────
     const ssMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/screenshots$/);
@@ -86,6 +91,9 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     // ── Docs ──────────────────────────────────────────────────
     const docMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/docs$/);
     if (docMatch && method === "POST") return uploadDoc(req, env, docMatch[2]);
+    const docItemMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/docs\/(.+)$/);
+    if (docItemMatch && method === "PATCH") return editDoc(req, env, docItemMatch[2], docItemMatch[3]);
+    if (docItemMatch && method === "DELETE") return removeDoc(req, env, docItemMatch[2], docItemMatch[3]);
 
     // ── Auto-sync ─────────────────────────────────────────────
     const syncMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)\/sync$/);
@@ -94,7 +102,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       if (method === "POST") return triggerSync(req, env, syncMatch[2]);
     }
 
-    // ── Asset proxy: /content/:id/asset?path=versions/v1.0.html ─
+    // ── Asset proxy: /content/:id/asset?path=versions.v1.0.html or docs.Home.md ─
     const assetMatch = path.match(/^\/content\/([^/]+)\/asset$/);
     if (assetMatch && method === "GET") {
       const assetPath = new URL(req.url).searchParams.get("path");
