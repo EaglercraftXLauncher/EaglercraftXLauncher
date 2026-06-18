@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-const AuthCallbackPage: React.FC = () => {
+export default function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refresh } = useAuth();
@@ -10,12 +10,7 @@ const AuthCallbackPage: React.FC = () => {
   useEffect(() => {
     const token = searchParams.get('token');
     const msg   = searchParams.get('msg') ?? searchParams.get('error');
-
-    if (msg) {
-      navigate(`/auth/error?msg=${encodeURIComponent(msg)}`);
-      return;
-    }
-
+    if (msg) { navigate(`/auth/error?msg=${encodeURIComponent(msg)}`); return; }
     if (token) {
       sessionStorage.setItem('auth_token', token);
       refresh().then(() => navigate('/', { replace: true }));
@@ -29,6 +24,4 @@ const AuthCallbackPage: React.FC = () => {
       <p style={{ color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>Signing you in…</p>
     </div>
   );
-};
-
-export default AuthCallbackPage;
+}
