@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 const GoogleIcon = () => (
@@ -16,16 +15,23 @@ const GithubIcon = () => (
   </svg>
 );
 
-const AuthPage: React.FC = () => {
+export default function AuthPage() {
   const { login } = useAuth();
   return (
     <div className="auth-page">
       <div className="auth-card">
         <div>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: 14, color: '#fff', margin: '0 auto 16px' }}>EXL</div>
-          <div className="auth-title">EaglercraftXLauncher</div>
-          <div className="auth-sub" style={{ marginTop: 6 }}>Sign in to upload and manage content</div>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, background: 'var(--accent)',
+            display: 'grid', placeItems: 'center', fontFamily: 'var(--font-head)',
+            fontWeight: 800, fontSize: 13, color: '#fff', margin: '0 auto 16px',
+          }}>EX</div>
+          <div className="auth-title">Eaglercraft X Launcher</div>
+          <div className="auth-sub" style={{ marginTop: 8 }}>
+            Sign in to upload clients, mods, and skins
+          </div>
         </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button className="oauth-btn" onClick={() => login('google')}>
             <GoogleIcon /> Continue with Google
@@ -34,12 +40,13 @@ const AuthPage: React.FC = () => {
             <GithubIcon /> Continue with GitHub
           </button>
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
-          By signing in you agree to our <a href="/tos" style={{ color: 'var(--text2)' }}>Terms</a> and <a href="/privacy" style={{ color: 'var(--text2)' }}>Privacy Policy</a>.
+
+        <p style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.7, textAlign: 'center' }}>
+          By signing in you agree to our{' '}
+          <a href="/tos.html" style={{ color: 'var(--text2)' }}>Terms of Service</a>{' '}and{' '}
+          <a href="/privacy.html" style={{ color: 'var(--text2)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>
   );
-};
-
-export default AuthPage;
+}
