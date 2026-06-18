@@ -1,6 +1,4 @@
 export type ContentKind = "client" | "mod" | "skin";
-export type ContentType = ContentKind;
-export type ContentCategory = string;
 export type UserRole    = "user" | "developer" | "admin" | "owner";
 
 export interface User {
@@ -14,8 +12,7 @@ export interface User {
   createdAt:     string;
 }
 
-// Matches ContentEntry from functions/api/_github.ts
-export interface ContentEntry {
+export interface IndexEntry {
   contentId:   string;
   kind:        ContentKind;
   name:        string;
@@ -25,11 +22,42 @@ export interface ContentEntry {
   description: string;
   uploaderUid: string;
   createdAt:   string;
+  latestTag:   string | null;
 }
 
-export interface BrowseResult {
-  items:  ContentEntry[];
-  total:  number;
-  limit:  number;
-  offset: number;
+export interface ContentVersion {
+  tag:        string;
+  filename:   string;
+  label:      string;
+  changelog:  string;
+  uploadedAt: string;
+  isLatest:   boolean;
+}
+
+export interface AutoSyncConfig {
+  enabled:     boolean;
+  sourceUrl:   string;
+  versionTag:  string;
+  lastSyncAt:  string | null;
+  lastSyncOk:  boolean | null;
+  lastSyncMsg: string | null;
+}
+
+export interface ClientManifest {
+  contentId:    string;
+  kind:         ContentKind;
+  name:         string;
+  author:       string;
+  description:  string;
+  faviconUrl:   string;
+  posterUrl:    string;
+  bannerUrl:    string;
+  tags:         string[];
+  uploaderUid:  string;
+  createdAt:    string;
+  updatedAt:    string;
+  versions:     ContentVersion[];
+  screenshots:  string[];
+  docs:         string[];
+  autoSync:     AutoSyncConfig | null;
 }
