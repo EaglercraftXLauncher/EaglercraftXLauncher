@@ -86,7 +86,7 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
   const [syncing,     setSyncing]       = useState(false);
   const [savingSync,  setSavingSync]    = useState(false);
 
-  const canEdit = !!user && CAN_UPLOAD.has(user.role);
+  const canEdit = !!user && (CAN_UPLOAD.has(user.role) && (user.role === 'admin' || user.role === 'owner' || user.uid === manifest?.uploaderUid));
   const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
 
   const loadManifest = useCallback(async () => {
@@ -172,6 +172,90 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
     } catch { setDocText('Failed to load document.'); }
   };
 
+
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const handleMetadataSave = async () => {
+    if (!manifest) return;
+    const name = window.prompt('Name', manifest.name);
+    if (name === null) return;
+    const description = window.prompt('Description', manifest.description);
+    if (description === null) return;
+    const faviconUrl = window.prompt('Favicon URL', manifest.faviconUrl);
+    if (faviconUrl === null) return;
+    const bannerUrl = window.prompt('Banner URL', manifest.bannerUrl);
+    if (bannerUrl === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ name, description, faviconUrl, bannerUrl }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Content updated', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleVersionEdit = async (version: ContentVersion) => {
+    const tag = window.prompt('Version tag', version.tag);
+    if (tag === null) return;
+    const changelog = window.prompt('Changelog', version.changelog);
+    if (changelog === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ tag, label: tag, changelog }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Version updated', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleVersionDelete = async (version: ContentVersion) => {
+    if (!window.confirm(`Delete version ${version.tag}?`)) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
+        method: 'DELETE', headers: authHeaders,
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Version deleted', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Delete failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleDocEdit = async (filename: string) => {
+    const currentName = filename.replace(/^docs[/.]/, '').replace(/\.md$/, '');
+    const name = window.prompt('Document name', currentName);
+    if (name === null) return;
+    const content = window.prompt('Content', docText && viewingDoc === filename ? docText : '');
+    if (content === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ name, content }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Doc updated', 'success'); setViewingDoc(null); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleDocDelete = async (filename: string) => {
+    if (!window.confirm(`Delete ${filename.replace(/^docs[/.]/, '')}?`)) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
+        method: 'DELETE', headers: authHeaders,
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Doc deleted', 'success'); setViewingDoc(null); loadManifest(); }
+      else addToast(json.error ?? 'Delete failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
   // ── Save auto-sync ──────────────────────────────────────────
   const handleSaveSync = async (disable = false) => {
     setSavingSync(true);
@@ -206,7 +290,7 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
 
   // ── Asset URL ───────────────────────────────────────────────
   const assetPath = (filename: string) =>
-    filename.replace(/^(versions|docs)\//, '$1.');
+    filename.replace(/^(versions|docs|screenshots)\//, '$1.');
 
   const assetUrl = (filename: string) =>
     `${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`;
@@ -281,6 +365,11 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
               </div>
             )}
           </div>
+          {canEdit && (
+            <button className="btn btn-ghost btn-sm" onClick={handleMetadataSave} style={{ flexShrink: 0 }}>
+              Edit details
+            </button>
+          )}
           {activeVersion && (
             <a href={assetUrl(activeVersion.filename)} target="_blank" rel="noopener noreferrer"
               className="btn btn-primary"
@@ -357,6 +446,10 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(v.uploadedAt).toLocaleDateString()}</span>
+                    {canEdit && (<>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionEdit(v)}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionDelete(v)}>Delete</button>
+                    </>)}
                     <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
                       className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <PlayIcon /> Play
@@ -442,7 +535,13 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
                 {manifest.docs.map(d => (
                   <div key={d} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace(/^docs[/.]/, '')}</span>
-                    <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
+                      {canEdit && (<>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocEdit(d)}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocDelete(d)}>Delete</button>
+                      </>)}
+                    </div>
                   </div>
                 ))}
                 {canEdit && (
