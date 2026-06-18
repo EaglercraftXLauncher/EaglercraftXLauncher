@@ -185,8 +185,11 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
   };
 
   // ── Asset URL ───────────────────────────────────────────────
+  const assetPath = (filename: string) =>
+    filename.replace(/^versions\//, 'versions.');
+
   const assetUrl = (filename: string) =>
-    `${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`;
+    `${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`;
 
   if (loading) return <div style={{ padding: 40, color: 'var(--text3)' }}>Loading…</div>;
   if (!manifest) return null;
