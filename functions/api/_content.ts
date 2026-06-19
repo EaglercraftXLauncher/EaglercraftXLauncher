@@ -3,7 +3,7 @@ import { ok, fail, sessionUser, nanoid } from "./_utils";
 import {
   readIndex, createContent, getManifest, addVersion, addScreenshot,
   addDoc, updateContentMetadata, updateVersionMetadata, deleteVersion, updateDoc, deleteDoc,
-  setAutoSync, runAutoSync, proxyAsset, deleteContent,
+  setAutoSync, removeAutoSync, runAutoSync, proxyAsset, deleteContent,
   type ContentKind, type ClientManifest, type ContentVersion, type AutoSyncConfig,
 } from "./_github";
 
@@ -267,8 +267,9 @@ export async function updateAutoSync(req: Request, env: Env, contentId: string):
   try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
 
   if (body.disable) {
-    await setAutoSync(env, contentId, null);
-    return ok({ autoSync: null }, env);
+    if (!body.versionTag?.trim()) return fail("versionTag is required", env, 400);
+    await removeAutoSync(env, contentId, body.versionTag.trim());
+    return ok({ versionTag: body.versionTag.trim() }, env);
   }
 
   if (!body.sourceUrl?.trim()) return fail("sourceUrl is required", env, 400);
@@ -296,7 +297,8 @@ export async function triggerSync(req: Request, env: Env, contentId: string): Pr
   const allowed = await canManageContent(req, env, contentId);
   if (!allowed.ok) return allowed.response;
 
-  const result = await runAutoSync(env, contentId);
+  const versionTag = new URL(req.url).searchParams.get("versionTag") ?? undefined;
+  const result = await runAutoSync(env, contentId, versionTag);
   return ok(result, env, result.ok ? 200 : 502);
 }
 

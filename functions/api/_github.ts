@@ -16,6 +16,7 @@ export interface ClientManifest {
   tags: string[]; uploaderUid: string; createdAt: string; updatedAt: string;
   versions: ContentVersion[]; screenshots: string[]; docs: string[];
   autoSync: AutoSyncConfig | null;
+  autoSyncs?: AutoSyncConfig[];
 }
 export interface IndexEntry {
   contentId: string; kind: ContentKind; name: string; author: string;
@@ -335,50 +336,86 @@ export async function deleteDoc(env: Env, contentId: string, filename: string): 
   return manifest;
 }
 
+function syncConfigs(manifest: ClientManifest): AutoSyncConfig[] {
+  return manifest.autoSyncs ?? (manifest.autoSync ? [manifest.autoSync] : []);
+}
+
 export async function setAutoSync(env: Env, contentId: string, config: AutoSyncConfig | null): Promise<void> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
   const manifest = await getManifest(env, contentId);
   if (!manifest) throw new Error("Manifest not found");
-  manifest.autoSync = config; manifest.updatedAt = new Date().toISOString();
+
+  const configs = syncConfigs(manifest).filter(c => c.versionTag !== config?.versionTag);
+  if (config) configs.push(config);
+  manifest.autoSyncs = configs;
+  manifest.autoSync = configs[0] ?? null;
+  manifest.updatedAt = new Date().toISOString();
   await saveManifest(env, release.id, manifest, release.assets);
 }
 
-export async function runAutoSync(env: Env, contentId: string): Promise<{ ok: boolean; msg: string }> {
+export async function removeAutoSync(env: Env, contentId: string, versionTag: string): Promise<void> {
+  const release = await getRelease(env, contentId);
+  if (!release) throw new Error("Release not found");
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) throw new Error("Manifest not found");
+  const configs = syncConfigs(manifest).filter(c => c.versionTag !== versionTag);
+  manifest.autoSyncs = configs;
+  manifest.autoSync = configs[0] ?? null;
+  manifest.updatedAt = new Date().toISOString();
+  await saveManifest(env, release.id, manifest, release.assets);
+}
+
+export async function runAutoSync(env: Env, contentId: string, versionTag?: string): Promise<{ ok: boolean; msg: string; results?: Array<{ versionTag: string; ok: boolean; msg: string }> }> {
   const release = await getRelease(env, contentId);
   if (!release) return { ok: false, msg: "Release not found" };
   const manifest = await getManifest(env, contentId);
   if (!manifest) return { ok: false, msg: "Manifest not found" };
-  if (!manifest.autoSync?.enabled) return { ok: false, msg: "Auto-sync not enabled" };
-  const { sourceUrl, versionTag } = manifest.autoSync;
-  const version = manifest.versions.find(v => v.tag === versionTag);
-  if (!version) return { ok: false, msg: `Version ${versionTag} not found` };
-  let remoteRes: Response;
-  try {
-    remoteRes = await fetch(sourceUrl, { redirect: "follow" });
-    if (!remoteRes.ok) throw new Error(`Remote responded ${remoteRes.status}`);
-  } catch (e) {
-    const msg = `Fetch failed: ${e instanceof Error ? e.message : String(e)}`;
-    manifest.autoSync.lastSyncAt = new Date().toISOString();
-    manifest.autoSync.lastSyncOk = false; manifest.autoSync.lastSyncMsg = msg;
-    await saveManifest(env, release.id, manifest, release.assets);
-    return { ok: false, msg };
+  const configs = syncConfigs(manifest).filter(c => c.enabled && (!versionTag || c.versionTag === versionTag));
+  if (configs.length === 0) return { ok: false, msg: versionTag ? `Auto-sync not enabled for ${versionTag}` : "Auto-sync not enabled" };
+
+  const results: Array<{ versionTag: string; ok: boolean; msg: string }> = [];
+  for (const config of configs) {
+    const { sourceUrl } = config;
+    const version = manifest.versions.find(v => v.tag === config.versionTag);
+    if (!version) {
+      const msg = `Version ${config.versionTag} not found`;
+      config.lastSyncAt = new Date().toISOString();
+      config.lastSyncOk = false; config.lastSyncMsg = msg;
+      results.push({ versionTag: config.versionTag, ok: false, msg });
+      continue;
+    }
+    let remoteRes: Response;
+    try {
+      remoteRes = await fetch(sourceUrl, { redirect: "follow" });
+      if (!remoteRes.ok) throw new Error(`Remote responded ${remoteRes.status}`);
+    } catch (e) {
+      const msg = `Fetch failed: ${e instanceof Error ? e.message : String(e)}`;
+      config.lastSyncAt = new Date().toISOString();
+      config.lastSyncOk = false; config.lastSyncMsg = msg;
+      results.push({ versionTag: config.versionTag, ok: false, msg });
+      continue;
+    }
+    const fileData = await remoteRes.arrayBuffer();
+    const urlExt   = sourceUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "html";
+    const ext      = ["html","js","png","jpg","gif","webp"].includes(urlExt) ? urlExt : "html";
+    const mime     = remoteRes.headers.get("content-type")?.split(";")[0] ?? "text/html";
+    const filename = versionAssetFilename(config.versionTag, ext);
+    const old = release.assets.find(a => a.name === filename);
+    if (old) await deleteAsset(env, old.id);
+    await uploadAsset(env, release.id, filename, mime, fileData);
+    version.filename = filename; version.uploadedAt = new Date().toISOString();
+    config.lastSyncAt = new Date().toISOString();
+    config.lastSyncOk = true;
+    config.lastSyncMsg = `Synced ${fileData.byteLength} bytes from ${sourceUrl}`;
+    results.push({ versionTag: config.versionTag, ok: true, msg: config.lastSyncMsg });
   }
-  const fileData = await remoteRes.arrayBuffer();
-  const urlExt   = sourceUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "html";
-  const ext      = ["html","js","png","jpg","gif","webp"].includes(urlExt) ? urlExt : "html";
-  const mime     = remoteRes.headers.get("content-type")?.split(";")[0] ?? "text/html";
-  const filename = versionAssetFilename(versionTag, ext);
-  const old = release.assets.find(a => a.name === filename);
-  if (old) await deleteAsset(env, old.id);
-  await uploadAsset(env, release.id, filename, mime, fileData);
-  version.filename = filename; version.uploadedAt = new Date().toISOString();
-  manifest.autoSync.lastSyncAt = new Date().toISOString();
-  manifest.autoSync.lastSyncOk = true;
-  manifest.autoSync.lastSyncMsg = `Synced ${fileData.byteLength} bytes from ${sourceUrl}`;
+  manifest.autoSyncs = syncConfigs(manifest);
+  manifest.autoSync = manifest.autoSyncs[0] ?? null;
   manifest.updatedAt = new Date().toISOString();
   await saveManifest(env, release.id, manifest, release.assets);
-  return { ok: true, msg: manifest.autoSync.lastSyncMsg };
+  const failed = results.filter(r => !r.ok).length;
+  return { ok: failed === 0, msg: failed ? `${failed}/${results.length} syncs failed` : `Synced ${results.length} version(s)`, results };
 }
 
 export async function proxyAsset(env: Env, contentId: string, assetFilename: string): Promise<Response | null> {

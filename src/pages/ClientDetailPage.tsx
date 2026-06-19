@@ -22,6 +22,7 @@ interface ClientManifest {
   tags: string[]; uploaderUid: string; createdAt: string; updatedAt: string;
   versions: ContentVersion[]; screenshots: string[]; docs: string[];
   autoSync: AutoSyncConfig | null;
+  autoSyncs?: AutoSyncConfig[];
 }
 
 type Tab = 'play' | 'versions' | 'screenshots' | 'docs' | 'sync';
@@ -99,9 +100,10 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         setManifest(json.data);
         const latest = json.data.versions.find(v => v.isLatest) ?? json.data.versions[0];
         setActiveVersion(latest ?? null);
-        if (json.data.autoSync) {
-          setSyncUrl(json.data.autoSync.sourceUrl);
-          setSyncTag(json.data.autoSync.versionTag);
+        const firstSync = json.data.autoSyncs?.[0] ?? json.data.autoSync;
+        if (firstSync) {
+          setSyncUrl(firstSync.sourceUrl);
+          setSyncTag(firstSync.versionTag);
         }
       } else { addToast('Content not found', 'error'); navigate(-1); }
     } catch { addToast('Network error', 'error'); }
@@ -257,10 +259,10 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
   };
 
   // ── Save auto-sync ──────────────────────────────────────────
-  const handleSaveSync = async (disable = false) => {
+  const handleSaveSync = async (disable = false, targetTag = syncTag) => {
     setSavingSync(true);
     try {
-      const body = disable ? { disable: true } : { sourceUrl: syncUrl.trim(), versionTag: syncTag.trim(), enabled: true };
+      const body = disable ? { disable: true, versionTag: targetTag.trim() } : { sourceUrl: syncUrl.trim(), versionTag: targetTag.trim(), enabled: true };
       const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -274,10 +276,11 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
   };
 
   // ── Trigger sync ────────────────────────────────────────────
-  const handleTriggerSync = async () => {
+  const handleTriggerSync = async (versionTag?: string) => {
     setSyncing(true);
     try {
-      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
+      const query = versionTag ? `?versionTag=${encodeURIComponent(versionTag)}` : '';
+      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync${query}`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json() as { ok: boolean; data?: { ok: boolean; msg: string } };
@@ -297,6 +300,8 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
 
   if (loading) return <div style={{ padding: 40, color: 'var(--text3)' }}>Loading…</div>;
   if (!manifest) return null;
+
+  const autoSyncs = manifest.autoSyncs ?? (manifest.autoSync ? [manifest.autoSync] : []);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play',        label: 'Play' },
@@ -571,50 +576,59 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         {/* ── Auto-Sync tab ── */}
         {tab === 'sync' && canEdit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Current status */}
-            {manifest.autoSync && (
-              <div style={{ background: 'var(--surface)', border: `1px solid ${manifest.autoSync.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 18 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Current Status</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                  <p><span style={{ color: 'var(--text3)' }}>URL:</span> <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{manifest.autoSync.sourceUrl}</code></p>
-                  <p><span style={{ color: 'var(--text3)' }}>Target version:</span> <code style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{manifest.autoSync.versionTag}</code></p>
-                  {manifest.autoSync.lastSyncAt && (
-                    <p><span style={{ color: 'var(--text3)' }}>Last sync:</span> <span style={{ color: 'var(--text2)' }}>{new Date(manifest.autoSync.lastSyncAt).toLocaleString()}</span>
-                      &nbsp;<span style={{ color: manifest.autoSync.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
-                        {manifest.autoSync.lastSyncOk ? '✓ OK' : '✗ Failed'}
-                      </span>
-                    </p>
-                  )}
-                  {manifest.autoSync.lastSyncMsg && (
-                    <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{manifest.autoSync.lastSyncMsg}</p>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                  <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                    onClick={handleTriggerSync} disabled={syncing}>
-                    <SyncIcon />{syncing ? 'Syncing…' : 'Sync Now'}
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => handleSaveSync(true)} disabled={savingSync}>
-                    Disable Auto-Sync
-                  </button>
-                </div>
+            {autoSyncs.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {autoSyncs.map(config => (
+                  <div key={config.versionTag} style={{ background: 'var(--surface)', border: `1px solid ${config.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 18 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Auto-Sync: {config.versionTag}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                      <p><span style={{ color: 'var(--text3)' }}>URL:</span> <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{config.sourceUrl}</code></p>
+                      {config.lastSyncAt && (
+                        <p><span style={{ color: 'var(--text3)' }}>Last sync:</span> <span style={{ color: 'var(--text2)' }}>{new Date(config.lastSyncAt).toLocaleString()}</span>
+                          &nbsp;<span style={{ color: config.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
+                            {config.lastSyncOk ? '✓ OK' : '✗ Failed'}
+                          </span>
+                        </p>
+                      )}
+                      {config.lastSyncMsg && (
+                        <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{config.lastSyncMsg}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                      <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => handleTriggerSync(config.versionTag)} disabled={syncing}>
+                        <SyncIcon />{syncing ? 'Syncing…' : 'Sync This Version'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setSyncUrl(config.sourceUrl); setSyncTag(config.versionTag); }}>
+                        Edit Config
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleSaveSync(true, config.versionTag)} disabled={savingSync}>
+                        Disable
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={() => handleTriggerSync()} disabled={syncing}>
+                  <SyncIcon />{syncing ? 'Syncing…' : 'Sync All Configs'}
+                </button>
               </div>
             )}
 
             {/* Config form */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>
-                {manifest.autoSync ? 'Update Auto-Sync' : 'Enable Auto-Sync'}
+                {autoSyncs.some(c => c.versionTag === syncTag) ? 'Update Auto-Sync Config' : 'Add Auto-Sync Config'}
               </h3>
               <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.6 }}>
-                Provide a URL to automatically sync game files. When triggered, the worker fetches the latest file from that URL and replaces the specified version's file in GitHub Releases.
+                Add one source URL per version. Each saved config targets a single version, and Sync All will update every enabled version config.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <F label="Source URL (raw file link)">
                   <input className="form-input" placeholder="https://example.com/client.html"
                     value={syncUrl} onChange={e => setSyncUrl(e.target.value)} />
                 </F>
-                <F label="Version to update" hint="Which version tag gets replaced on each sync">
+                <F label="Version to update" hint="Each version can have its own auto-sync URL">
                   <select className="form-select" value={syncTag} onChange={e => setSyncTag(e.target.value)}>
                     <option value="">Select version…</option>
                     {manifest.versions.map(v => <option key={v.tag} value={v.tag}>{v.tag}</option>)}
