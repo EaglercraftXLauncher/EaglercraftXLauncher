@@ -2,11 +2,23 @@ import type { Env } from "./_types";
 import { ok, fail, sessionUser, nanoid } from "./_utils";
 import {
   readIndex, createContent, getManifest, addVersion, addScreenshot,
-  addDoc, setAutoSync, runAutoSync, proxyAsset, deleteContent,
+  addDoc, updateContentMetadata, updateVersionMetadata, deleteVersion, updateDoc, deleteDoc,
+  setAutoSync, removeAutoSync, runAutoSync, proxyAsset, deleteContent,
   type ContentKind, type ClientManifest, type ContentVersion, type AutoSyncConfig,
 } from "./_github";
 
 const CAN_UPLOAD = new Set(["developer", "admin", "owner"]);
+
+async function canManageContent(req: Request, env: Env, contentId: string): Promise<{ ok: true } | { ok: false; response: Response }> {
+  const user = await sessionUser(req, env);
+  if (!user) return { ok: false, response: fail("Unauthorized", env, 401) };
+  const manifest = await getManifest(env, contentId);
+  if (!manifest) return { ok: false, response: fail("Not found", env, 404) };
+  if (user.role === "admin" || user.role === "owner" || (user.role === "developer" && manifest.uploaderUid === user.uid)) {
+    return { ok: true };
+  }
+  return { ok: false, response: fail("Forbidden", env, 403) };
+}
 
 const MIME_MAP: Record<string, { ext: string; mime: string }> = {
   ".html": { ext: "html", mime: "text/html" },
@@ -107,9 +119,8 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
 
 // ── Add version ────────────────────────────────────────────────
 export async function uploadVersion(req: Request, env: Env, contentId: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
 
   let form: FormData;
   try { form = await req.formData(); } catch { return fail("Multipart form required", env, 400); }
@@ -143,9 +154,8 @@ export async function uploadVersion(req: Request, env: Env, contentId: string): 
 
 // ── Add screenshot ─────────────────────────────────────────────
 export async function uploadScreenshot(req: Request, env: Env, contentId: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
 
   let form: FormData;
   try { form = await req.formData(); } catch { return fail("Multipart form required", env, 400); }
@@ -165,9 +175,8 @@ export async function uploadScreenshot(req: Request, env: Env, contentId: string
 
 // ── Add doc ────────────────────────────────────────────────────
 export async function uploadDoc(req: Request, env: Env, contentId: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
 
   let body: { name?: string; content?: string };
   try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
@@ -183,18 +192,84 @@ export async function uploadDoc(req: Request, env: Env, contentId: string): Prom
   }
 }
 
+
+// ── Update content metadata ───────────────────────────────────
+export async function updateContent(req: Request, env: Env, contentId: string): Promise<Response> {
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
+
+  let body: { name?: string; description?: string; faviconUrl?: string; posterUrl?: string; bannerUrl?: string; tags?: string[] };
+  try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+
+  try {
+    const manifest = await updateContentMetadata(env, contentId, {
+      name: body.name?.trim(),
+      description: body.description?.trim(),
+      faviconUrl: body.faviconUrl?.trim(),
+      posterUrl: body.posterUrl?.trim(),
+      bannerUrl: body.bannerUrl?.trim(),
+      tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : undefined,
+    });
+    return ok(manifest, env);
+  } catch (e) {
+    return fail(`Update failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+// ── Update/delete version metadata ─────────────────────────────
+export async function updateVersion(req: Request, env: Env, contentId: string, tag: string): Promise<Response> {
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
+  let body: { tag?: string; label?: string; changelog?: string; isLatest?: boolean };
+  try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+  try {
+    const manifest = await updateVersionMetadata(env, contentId, decodeURIComponent(tag), {
+      tag: body.tag?.trim(), label: body.label?.trim(), changelog: body.changelog, isLatest: body.isLatest,
+    });
+    return ok(manifest, env);
+  } catch (e) {
+    return fail(`Version update failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502);
+  }
+}
+
+export async function removeVersion(req: Request, env: Env, contentId: string, tag: string): Promise<Response> {
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
+  try { return ok(await deleteVersion(env, contentId, decodeURIComponent(tag)), env); }
+  catch (e) { return fail(`Version delete failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502); }
+}
+
+// ── Update/delete docs ─────────────────────────────────────────
+export async function editDoc(req: Request, env: Env, contentId: string, filename: string): Promise<Response> {
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
+  let body: { name?: string; content?: string };
+  try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+  if (!body.name?.trim()) return fail("name is required", env, 400);
+  if (body.content === undefined) return fail("content is required", env, 400);
+  try { return ok(await updateDoc(env, contentId, decodeURIComponent(filename), body.name.trim(), body.content), env); }
+  catch (e) { return fail(`Doc update failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502); }
+}
+
+export async function removeDoc(req: Request, env: Env, contentId: string, filename: string): Promise<Response> {
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
+  try { return ok(await deleteDoc(env, contentId, decodeURIComponent(filename)), env); }
+  catch (e) { return fail(`Doc delete failed: ${e instanceof Error ? e.message : "unknown"}`, env, 502); }
+}
+
 // ── Auto-sync config ───────────────────────────────────────────
 export async function updateAutoSync(req: Request, env: Env, contentId: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
 
   let body: Partial<AutoSyncConfig> & { disable?: boolean };
   try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
 
   if (body.disable) {
-    await setAutoSync(env, contentId, null);
-    return ok({ autoSync: null }, env);
+    if (!body.versionTag?.trim()) return fail("versionTag is required", env, 400);
+    await removeAutoSync(env, contentId, body.versionTag.trim());
+    return ok({ versionTag: body.versionTag.trim() }, env);
   }
 
   if (!body.sourceUrl?.trim()) return fail("sourceUrl is required", env, 400);
@@ -219,11 +294,11 @@ export async function updateAutoSync(req: Request, env: Env, contentId: string):
 
 // ── Trigger auto-sync ──────────────────────────────────────────
 export async function triggerSync(req: Request, env: Env, contentId: string): Promise<Response> {
-  const user = await sessionUser(req, env);
-  if (!user) return fail("Unauthorized", env, 401);
-  if (!CAN_UPLOAD.has(user.role)) return fail("Forbidden", env, 403);
+  const allowed = await canManageContent(req, env, contentId);
+  if (!allowed.ok) return allowed.response;
 
-  const result = await runAutoSync(env, contentId);
+  const versionTag = new URL(req.url).searchParams.get("versionTag") ?? undefined;
+  const result = await runAutoSync(env, contentId, versionTag);
   return ok(result, env, result.ok ? 200 : 502);
 }
 

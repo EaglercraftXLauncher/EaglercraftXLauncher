@@ -65,4 +65,5 @@ export interface ClientManifest {
   screenshots: string[];
   docs: string[];
   autoSync: AutoSyncConfig | null;
+  autoSyncs?: AutoSyncConfig[];
 }
