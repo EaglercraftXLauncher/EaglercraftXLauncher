@@ -431,11 +431,20 @@ export async function runAutoSync(env: Env, contentId: string, versionTag?: stri
 export async function proxyAsset(env: Env, contentId: string, assetFilename: string): Promise<Response | null> {
   const release = await getRelease(env, contentId);
   if (!release) return null;
-  const dotAssetFilename = assetFilename.replace(/^(versions|docs|screenshots)\//, "$1.");
-  const slashAssetFilename = assetFilename.replace(/^(versions|docs|screenshots)\./, "$1/");
-  const asset = release.assets.find(a => a.name === assetFilename)
-    ?? release.assets.find(a => a.name === dotAssetFilename)
-    ?? release.assets.find(a => a.name === slashAssetFilename);
+
+  // Support legacy paths and sanitized names
+  const cleanFilename = sanitizeTag(assetFilename.replace(/^(versions|docs|screenshots)[\.\/]/, ''));
+  const variants = [
+    assetFilename,
+    assetFilename.replace(/^(versions|docs|screenshots)\//, '$1.'),
+    assetFilename.replace(/^(versions|docs|screenshots)\./, '$1/'),
+    `versions.${cleanFilename}.${assetFilename.split('.').pop() || 'png'}`,
+    // etc. for other prefixes if needed
+  ];
+
+  const asset = release.assets.find(a => variants.includes(a.name)) 
+    ?? release.assets.find(a => a.name.startsWith('versions.') && a.name.endsWith(`.${assetFilename.split('.').pop() || ''}`));
+
   if (!asset) return null;
   const res = await proxyFetch(env, asset.url);
   if (!res) return null;
