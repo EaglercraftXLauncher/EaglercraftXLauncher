@@ -30,18 +30,18 @@ const INDEX_FILE: Record<ContentKind, string> = {
 
 function branch(env: Env): string { return env.CDN_REPO_BRANCH?.trim() || "main"; }
 
-function versionAssetFilename(tag: string, ext: string): string {
-  const safeTag = sanitizeTag(tag);
-  return `versions.${safeTag}.${ext}`;
-}
-
 function sanitizeTag(tag: string): string {
   return tag
     .trim()
     .replace(/[^a-zA-Z0-9._-]/g, '.')  // Replace non-alphanumeric (except . _ -) with .
     .replace(/\.+/, '.')               // Collapse multiple dots
     .replace(/^\.+|\.+$/g, '')         // Trim leading/trailing dots
-    .replace(/\s+/g, '.');             // Spaces -> dots (as per your example)
+    .replace(/\s+/g, '.');             // Spaces -> dots
+}
+
+function versionAssetFilename(tag: string, ext: string): string {
+  const safeTag = sanitizeTag(tag);
+  return `versions.${safeTag}.${ext}`;
 }
 
 function docAssetFilename(docName: string): string {
@@ -252,7 +252,6 @@ export async function addDoc(env: Env, contentId: string, docName: string, conte
   await saveManifest(env, release.id, manifest, release.assets);
 }
 
-
 export async function updateContentMetadata(env: Env, contentId: string, updates: Partial<Pick<ClientManifest, "name" | "description" | "faviconUrl" | "posterUrl" | "bannerUrl" | "tags">>): Promise<ClientManifest> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
@@ -432,14 +431,12 @@ export async function proxyAsset(env: Env, contentId: string, assetFilename: str
   const release = await getRelease(env, contentId);
   if (!release) return null;
 
-  // Support legacy paths and sanitized names
   const cleanFilename = sanitizeTag(assetFilename.replace(/^(versions|docs|screenshots)[\.\/]/, ''));
   const variants = [
     assetFilename,
     assetFilename.replace(/^(versions|docs|screenshots)\//, '$1.'),
     assetFilename.replace(/^(versions|docs|screenshots)\./, '$1/'),
     `versions.${cleanFilename}.${assetFilename.split('.').pop() || 'png'}`,
-    // etc. for other prefixes if needed
   ];
 
   const asset = release.assets.find(a => variants.includes(a.name)) 
