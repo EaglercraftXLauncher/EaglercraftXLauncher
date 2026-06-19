@@ -34,6 +34,15 @@ function versionAssetFilename(tag: string, ext: string): string {
   return `versions.${tag}.${ext}`;
 }
 
+function sanitizeTag(tag: string): string {
+  return tag
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, '.')  // Replace non-alphanumeric (except . _ -) with .
+    .replace(/\.+/, '.')               // Collapse multiple dots
+    .replace(/^\.+|\.+$/g, '')         // Trim leading/trailing dots
+    .replace(/\s+/g, '.');             // Spaces -> dots (as per your example)
+}
+
 function docAssetFilename(docName: string): string {
   const base = docName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9._-]/g, "_");
   return `docs.${base}.md`;
