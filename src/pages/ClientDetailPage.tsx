@@ -22,6 +22,7 @@ interface ClientManifest {
   tags: string[]; uploaderUid: string; createdAt: string; updatedAt: string;
   versions: ContentVersion[]; screenshots: string[]; docs: string[];
   autoSync: AutoSyncConfig | null;
+  autoSyncs?: AutoSyncConfig[];
 }
 
 type Tab = 'play' | 'versions' | 'screenshots' | 'docs' | 'sync';
@@ -32,8 +33,28 @@ const UploadIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const SyncIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
 const BackIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
 
-export default function ClientDetailPage() {
-  const { kind, contentId } = useParams<{ kind: string; contentId: string }>();
+const isVideoUrl = (url: string) =>
+  /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(url);
+
+const isVideoEmbedUrl = (url: string) =>
+  /^https?:\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/embed\/|player\.vimeo\.com\/video\/)/i.test(url);
+
+const playableEmbedUrl = (url: string) => {
+  const embed = new URL(url);
+
+  if (/youtube(?:-nocookie)?\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
+    embed.searchParams.set('mute', embed.searchParams.get('mute') ?? '1');
+  }
+
+  if (/player\.vimeo\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
+    embed.searchParams.set('muted', embed.searchParams.get('muted') ?? '1');
+  }
+
+  return embed.toString();
+};
+
+export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
+  const { contentId } = useParams<{ contentId: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();
   const { addToast } = useToast();
@@ -66,7 +87,7 @@ export default function ClientDetailPage() {
   const [syncing,     setSyncing]       = useState(false);
   const [savingSync,  setSavingSync]    = useState(false);
 
-  const canEdit = !!user && CAN_UPLOAD.has(user.role);
+  const canEdit = !!user && (CAN_UPLOAD.has(user.role) && (user.role === 'admin' || user.role === 'owner' || user.uid === manifest?.uploaderUid));
   const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
 
   const loadManifest = useCallback(async () => {
@@ -79,9 +100,10 @@ export default function ClientDetailPage() {
         setManifest(json.data);
         const latest = json.data.versions.find(v => v.isLatest) ?? json.data.versions[0];
         setActiveVersion(latest ?? null);
-        if (json.data.autoSync) {
-          setSyncUrl(json.data.autoSync.sourceUrl);
-          setSyncTag(json.data.autoSync.versionTag);
+        const firstSync = json.data.autoSyncs?.[0] ?? json.data.autoSync;
+        if (firstSync) {
+          setSyncUrl(firstSync.sourceUrl);
+          setSyncTag(firstSync.versionTag);
         }
       } else { addToast('Content not found', 'error'); navigate(-1); }
     } catch { addToast('Network error', 'error'); }
@@ -147,16 +169,100 @@ export default function ClientDetailPage() {
     setViewingDoc(filename);
     setDocText('Loading…');
     try {
-      const res = await fetch(`${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`);
+      const res = await fetch(`${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`);
       setDocText(await res.text());
     } catch { setDocText('Failed to load document.'); }
   };
 
+
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const handleMetadataSave = async () => {
+    if (!manifest) return;
+    const name = window.prompt('Name', manifest.name);
+    if (name === null) return;
+    const description = window.prompt('Description', manifest.description);
+    if (description === null) return;
+    const faviconUrl = window.prompt('Favicon URL', manifest.faviconUrl);
+    if (faviconUrl === null) return;
+    const bannerUrl = window.prompt('Banner URL', manifest.bannerUrl);
+    if (bannerUrl === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ name, description, faviconUrl, bannerUrl }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Content updated', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleVersionEdit = async (version: ContentVersion) => {
+    const tag = window.prompt('Version tag', version.tag);
+    if (tag === null) return;
+    const changelog = window.prompt('Changelog', version.changelog);
+    if (changelog === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ tag, label: tag, changelog }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Version updated', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleVersionDelete = async (version: ContentVersion) => {
+    if (!window.confirm(`Delete version ${version.tag}?`)) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
+        method: 'DELETE', headers: authHeaders,
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Version deleted', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Delete failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleDocEdit = async (filename: string) => {
+    const currentName = filename.replace(/^docs[/.]/, '').replace(/\.md$/, '');
+    const name = window.prompt('Document name', currentName);
+    if (name === null) return;
+    const content = window.prompt('Content', docText && viewingDoc === filename ? docText : '');
+    if (content === null) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ name, content }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Doc updated', 'success'); setViewingDoc(null); loadManifest(); }
+      else addToast(json.error ?? 'Update failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
+  const handleDocDelete = async (filename: string) => {
+    if (!window.confirm(`Delete ${filename.replace(/^docs[/.]/, '')}?`)) return;
+    try {
+      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
+        method: 'DELETE', headers: authHeaders,
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast('Doc deleted', 'success'); setViewingDoc(null); loadManifest(); }
+      else addToast(json.error ?? 'Delete failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+  };
+
   // ── Save auto-sync ──────────────────────────────────────────
-  const handleSaveSync = async (disable = false) => {
+  const handleSaveSync = async (disable = false, targetTag = syncTag) => {
     setSavingSync(true);
     try {
-      const body = disable ? { disable: true } : { sourceUrl: syncUrl.trim(), versionTag: syncTag.trim(), enabled: true };
+      const body = disable ? { disable: true, versionTag: targetTag.trim() } : { sourceUrl: syncUrl.trim(), versionTag: targetTag.trim(), enabled: true };
       const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -170,10 +276,11 @@ export default function ClientDetailPage() {
   };
 
   // ── Trigger sync ────────────────────────────────────────────
-  const handleTriggerSync = async () => {
+  const handleTriggerSync = async (versionTag?: string) => {
     setSyncing(true);
     try {
-      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
+      const query = versionTag ? `?versionTag=${encodeURIComponent(versionTag)}` : '';
+      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync${query}`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json() as { ok: boolean; data?: { ok: boolean; msg: string } };
@@ -185,11 +292,16 @@ export default function ClientDetailPage() {
   };
 
   // ── Asset URL ───────────────────────────────────────────────
+  const assetPath = (filename: string) =>
+    filename.replace(/^(versions|docs|screenshots)\//, '$1.');
+
   const assetUrl = (filename: string) =>
-    `${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`;
+    `${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`;
 
   if (loading) return <div style={{ padding: 40, color: 'var(--text3)' }}>Loading…</div>;
   if (!manifest) return null;
+
+  const autoSyncs = manifest.autoSyncs ?? (manifest.autoSync ? [manifest.autoSync] : []);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play',        label: 'Play' },
@@ -203,9 +315,29 @@ export default function ClientDetailPage() {
     <div style={{ minHeight: '100vh' }}>
       {/* Banner */}
       {manifest.bannerUrl && (
-        <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative' }}>
-          <img src={manifest.bannerUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 40%, var(--bg))' }} />
+        <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative', background: '#000' }}>
+          {isVideoEmbedUrl(manifest.bannerUrl) ? (
+            <iframe
+              src={playableEmbedUrl(manifest.bannerUrl)}
+              title={`${manifest.name} banner video`}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+              allowFullScreen
+            />
+          ) : isVideoUrl(manifest.bannerUrl) ? (
+            <video
+              src={manifest.bannerUrl}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
+            />
+          ) : (
+            <img src={manifest.bannerUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, transparent 40%, var(--bg))' }} />
         </div>
       )}
 
@@ -238,6 +370,11 @@ export default function ClientDetailPage() {
               </div>
             )}
           </div>
+          {canEdit && (
+            <button className="btn btn-ghost btn-sm" onClick={handleMetadataSave} style={{ flexShrink: 0 }}>
+              Edit details
+            </button>
+          )}
           {activeVersion && (
             <a href={assetUrl(activeVersion.filename)} target="_blank" rel="noopener noreferrer"
               className="btn btn-primary"
@@ -314,6 +451,10 @@ export default function ClientDetailPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(v.uploadedAt).toLocaleDateString()}</span>
+                    {canEdit && (<>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionEdit(v)}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionDelete(v)}>Delete</button>
+                    </>)}
                     <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
                       className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <PlayIcon /> Play
@@ -398,8 +539,14 @@ export default function ClientDetailPage() {
                 {manifest.docs.length === 0 && !canEdit && <div className="empty"><h3>No docs yet</h3></div>}
                 {manifest.docs.map(d => (
                   <div key={d} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace('docs/', '')}</span>
-                    <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
+                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace(/^docs[/.]/, '')}</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
+                      {canEdit && (<>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocEdit(d)}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocDelete(d)}>Delete</button>
+                      </>)}
+                    </div>
                   </div>
                 ))}
                 {canEdit && (
@@ -429,50 +576,59 @@ export default function ClientDetailPage() {
         {/* ── Auto-Sync tab ── */}
         {tab === 'sync' && canEdit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Current status */}
-            {manifest.autoSync && (
-              <div style={{ background: 'var(--surface)', border: `1px solid ${manifest.autoSync.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 18 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Current Status</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                  <p><span style={{ color: 'var(--text3)' }}>URL:</span> <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{manifest.autoSync.sourceUrl}</code></p>
-                  <p><span style={{ color: 'var(--text3)' }}>Target version:</span> <code style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{manifest.autoSync.versionTag}</code></p>
-                  {manifest.autoSync.lastSyncAt && (
-                    <p><span style={{ color: 'var(--text3)' }}>Last sync:</span> <span style={{ color: 'var(--text2)' }}>{new Date(manifest.autoSync.lastSyncAt).toLocaleString()}</span>
-                      &nbsp;<span style={{ color: manifest.autoSync.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
-                        {manifest.autoSync.lastSyncOk ? '✓ OK' : '✗ Failed'}
-                      </span>
-                    </p>
-                  )}
-                  {manifest.autoSync.lastSyncMsg && (
-                    <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{manifest.autoSync.lastSyncMsg}</p>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                  <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                    onClick={handleTriggerSync} disabled={syncing}>
-                    <SyncIcon />{syncing ? 'Syncing…' : 'Sync Now'}
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => handleSaveSync(true)} disabled={savingSync}>
-                    Disable Auto-Sync
-                  </button>
-                </div>
+            {autoSyncs.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {autoSyncs.map(config => (
+                  <div key={config.versionTag} style={{ background: 'var(--surface)', border: `1px solid ${config.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 18 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Auto-Sync: {config.versionTag}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                      <p><span style={{ color: 'var(--text3)' }}>URL:</span> <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{config.sourceUrl}</code></p>
+                      {config.lastSyncAt && (
+                        <p><span style={{ color: 'var(--text3)' }}>Last sync:</span> <span style={{ color: 'var(--text2)' }}>{new Date(config.lastSyncAt).toLocaleString()}</span>
+                          &nbsp;<span style={{ color: config.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
+                            {config.lastSyncOk ? '✓ OK' : '✗ Failed'}
+                          </span>
+                        </p>
+                      )}
+                      {config.lastSyncMsg && (
+                        <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{config.lastSyncMsg}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                      <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => handleTriggerSync(config.versionTag)} disabled={syncing}>
+                        <SyncIcon />{syncing ? 'Syncing…' : 'Sync This Version'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setSyncUrl(config.sourceUrl); setSyncTag(config.versionTag); }}>
+                        Edit Config
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleSaveSync(true, config.versionTag)} disabled={savingSync}>
+                        Disable
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={() => handleTriggerSync()} disabled={syncing}>
+                  <SyncIcon />{syncing ? 'Syncing…' : 'Sync All Configs'}
+                </button>
               </div>
             )}
 
             {/* Config form */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>
-                {manifest.autoSync ? 'Update Auto-Sync' : 'Enable Auto-Sync'}
+                {autoSyncs.some(c => c.versionTag === syncTag) ? 'Update Auto-Sync Config' : 'Add Auto-Sync Config'}
               </h3>
               <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.6 }}>
-                Provide a URL to automatically sync game files. When triggered, the worker fetches the latest file from that URL and replaces the specified version's file in GitHub Releases.
+                Add one source URL per version. Each saved config targets a single version, and Sync All will update every enabled version config.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <F label="Source URL (raw file link)">
                   <input className="form-input" placeholder="https://example.com/client.html"
                     value={syncUrl} onChange={e => setSyncUrl(e.target.value)} />
                 </F>
-                <F label="Version to update" hint="Which version tag gets replaced on each sync">
+                <F label="Version to update" hint="Each version can have its own auto-sync URL">
                   <select className="form-select" value={syncTag} onChange={e => setSyncTag(e.target.value)}>
                     <option value="">Select version…</option>
                     {manifest.versions.map(v => <option key={v.tag} value={v.tag}>{v.tag}</option>)}
