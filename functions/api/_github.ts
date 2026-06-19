@@ -31,7 +31,8 @@ const INDEX_FILE: Record<ContentKind, string> = {
 function branch(env: Env): string { return env.CDN_REPO_BRANCH?.trim() || "main"; }
 
 function versionAssetFilename(tag: string, ext: string): string {
-  return `versions.${tag}.${ext}`;
+  const safeTag = sanitizeTag(tag);
+  return `versions.${safeTag}.${ext}`;
 }
 
 function sanitizeTag(tag: string): string {
