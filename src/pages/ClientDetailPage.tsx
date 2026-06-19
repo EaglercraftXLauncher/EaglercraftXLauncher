@@ -27,7 +27,7 @@ export default function ClientDetailPage({ kind }: Props) {
   const [tab, setTab] = useState<Tab>('view');
   const [activeVersion, setActiveVersion] = useState<ContentVersion | null>(null);
 
-  // Original states for version upload, screenshots, docs
+  // === ORIGINAL STATES (kept to avoid TS errors) ===
   const [vFile, setVFile] = useState<File | null>(null);
   const [vTag, setVTag] = useState('');
   const [vLog, setVLog] = useState('');
@@ -209,10 +209,10 @@ export default function ClientDetailPage({ kind }: Props) {
           ))}
         </div>
 
-        {/* Original tabs - placeholder for your existing content */}
-        {tab === 'view' && <div>View / Play tab (your original content)</div>}
-        {tab === 'screenshots' && <div>Screenshots tab (your original content)</div>}
-        {tab === 'docs' && <div>Docs tab (your original content)</div>}
+        {/* === YOUR ORIGINAL TABS CONTENT SHOULD GO HERE === */}
+        {tab === 'view' && <div>View tab content (original)</div>}
+        {tab === 'screenshots' && <div>Screenshots tab (original)</div>}
+        {tab === 'docs' && <div>Docs tab (original)</div>}
 
         {tab === 'versions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -230,16 +230,15 @@ export default function ClientDetailPage({ kind }: Props) {
                         <EditIcon /> Edit
                       </button>
                       <button onClick={() => deleteVersion(v.tag)} className="btn btn-ghost btn-sm" style={{ marginLeft: 8, color: 'var(--red)' }}>
-                        Delete
+                        🗑 Delete
                       </button>
                     </>
                   )}
                 </div>
               </div>
             ))}
-
-            {/* Original new version upload form goes here */}
-            {canEdit && <div>New Version Upload Form (your original code)</div>}
+            {/* Original upload form goes here */}
+            {canEdit && <div style={{ marginTop: 20 }}>New Version Upload Form (your original code)</div>}
           </div>
         )}
 
@@ -267,6 +266,7 @@ export default function ClientDetailPage({ kind }: Props) {
         )}
       </div>
 
+      {/* Version Edit Modal */}
       {editingVersion && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--bg)', padding: 24, borderRadius: 12, width: '90%', maxWidth: 500 }}>
