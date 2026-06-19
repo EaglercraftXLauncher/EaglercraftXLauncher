@@ -27,28 +27,28 @@ export default function ClientDetailPage({ kind }: Props) {
   const [tab, setTab] = useState<Tab>('view');
   const [activeVersion, setActiveVersion] = useState<ContentVersion | null>(null);
 
-  // Version upload (original)
+  // Original states for version upload, screenshots, docs
   const [vFile, setVFile] = useState<File | null>(null);
   const [vTag, setVTag] = useState('');
   const [vLog, setVLog] = useState('');
   const [vUploading, setVUploading] = useState(false);
 
-  // Screenshot / Doc (original)
   const [ssFile, setSsFile] = useState<File | null>(null);
   const [ssUploading, setSsUploading] = useState(false);
+
   const [docName, setDocName] = useState('');
   const [docContent, setDocContent] = useState('');
   const [docUploading, setDocUploading] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<string | null>(null);
   const [docText, setDocText] = useState('');
 
-  // New: Settings Edit
+  // Settings
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editFavicon, setEditFavicon] = useState('');
   const [editBanner, setEditBanner] = useState('');
 
-  // Version Edit Modal
+  // Version Edit
   const [editingVersion, setEditingVersion] = useState<ContentVersion | null>(null);
   const [editTag, setEditTag] = useState('');
   const [editLabel, setEditLabel] = useState('');
@@ -85,7 +85,6 @@ export default function ClientDetailPage({ kind }: Props) {
 
   useEffect(() => { loadManifest(); }, [loadManifest]);
 
-  // Version Edit
   const openVersionEditor = (v: ContentVersion) => {
     setEditingVersion(v);
     setEditTag(v.tag);
@@ -130,7 +129,6 @@ export default function ClientDetailPage({ kind }: Props) {
     } catch { addToast('Network error', 'error'); }
   };
 
-  // Settings Save
   const saveSettings = async () => {
     if (!contentId) return;
     try {
@@ -165,7 +163,6 @@ export default function ClientDetailPage({ kind }: Props) {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      {/* Your original banner + header code remains unchanged */}
       {manifest.bannerUrl && (
         <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative' }}>
           <img src={manifest.bannerUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -174,7 +171,6 @@ export default function ClientDetailPage({ kind }: Props) {
       )}
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 24px 80px' }}>
-        {/* Original back button + header + description */}
         <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/${endpoint}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 20, marginBottom: 16 }}>
           <BackIcon /> Back to {endpoint}
         </button>
@@ -201,7 +197,6 @@ export default function ClientDetailPage({ kind }: Props) {
 
         <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>{manifest.description}</p>
 
-        {/* Tabs - Added Settings */}
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 28 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -214,8 +209,11 @@ export default function ClientDetailPage({ kind }: Props) {
           ))}
         </div>
 
-        {/* === Original Tabs Content (unchanged) === */}
-        {tab === 'view' && /* your original view tab content */}
+        {/* Original tabs - placeholder for your existing content */}
+        {tab === 'view' && <div>View / Play tab (your original content)</div>}
+        {tab === 'screenshots' && <div>Screenshots tab (your original content)</div>}
+        {tab === 'docs' && <div>Docs tab (your original content)</div>}
+
         {tab === 'versions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {manifest.versions.map(v => (
@@ -240,47 +238,37 @@ export default function ClientDetailPage({ kind }: Props) {
               </div>
             ))}
 
-            {/* Original version upload form remains unchanged */}
-            {canEdit && /* your original upload new version form */}
+            {/* Original new version upload form goes here */}
+            {canEdit && <div>New Version Upload Form (your original code)</div>}
           </div>
         )}
 
-        {tab === 'screenshots' && /* original screenshots tab */}
-        {tab === 'docs' && /* original docs tab */}
-
-        {/* === New Settings Tab === */}
         {tab === 'settings' && canEdit && (
           <div style={{ background: 'var(--surface)', padding: 24, borderRadius: 12 }}>
             <h3>Edit Content Settings</h3>
-            
             <div style={{ marginBottom: 16 }}>
               <label>Name</label>
               <input className="form-input" value={editName || manifest.name} onChange={e => setEditName(e.target.value)} />
             </div>
-
             <div style={{ marginBottom: 16 }}>
               <label>Description</label>
               <textarea className="form-textarea" rows={4} value={editDesc || manifest.description} onChange={e => setEditDesc(e.target.value)} />
             </div>
-
             <div style={{ marginBottom: 16 }}>
-              <label>Favicon URL (Icon)</label>
-              <input className="form-input" placeholder="https://..." value={editFavicon || manifest.faviconUrl} onChange={e => setEditFavicon(e.target.value)} />
+              <label>Favicon URL</label>
+              <input className="form-input" value={editFavicon || manifest.faviconUrl} onChange={e => setEditFavicon(e.target.value)} placeholder="https://" />
             </div>
-
             <div style={{ marginBottom: 16 }}>
               <label>Banner URL</label>
-              <input className="form-input" placeholder="https://..." value={editBanner || manifest.bannerUrl} onChange={e => setEditBanner(e.target.value)} />
+              <input className="form-input" value={editBanner || manifest.bannerUrl} onChange={e => setEditBanner(e.target.value)} placeholder="https://" />
             </div>
-
             <button className="btn btn-primary" onClick={saveSettings}>Save Settings</button>
           </div>
         )}
       </div>
 
-      {/* Version Edit Modal */}
       {editingVersion && (
-        <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--bg)', padding: 24, borderRadius: 12, width: '90%', maxWidth: 500 }}>
             <h3>Edit Version</h3>
             <input className="form-input" value={editTag} onChange={e => setEditTag(e.target.value)} placeholder="Tag" />
