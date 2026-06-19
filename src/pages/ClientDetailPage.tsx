@@ -2,93 +2,62 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
-import type { ContentKind } from '../types';
+import type { ContentKind, ClientManifest, ContentVersion } from '../types';
 
 const API = '/api';
 const CAN_UPLOAD = new Set(['developer', 'admin', 'owner']);
 
-// ── Types ──────────────────────────────────────────────────────
-interface ContentVersion {
-  tag: string; filename: string; label: string;
-  changelog: string; uploadedAt: string; isLatest: boolean;
-}
-interface AutoSyncConfig {
-  enabled: boolean; sourceUrl: string; versionTag: string;
-  lastSyncAt: string | null; lastSyncOk: boolean | null; lastSyncMsg: string | null;
-}
-interface ClientManifest {
-  contentId: string; kind: ContentKind; name: string; author: string;
-  description: string; faviconUrl: string; posterUrl: string; bannerUrl: string;
-  tags: string[]; uploaderUid: string; createdAt: string; updatedAt: string;
-  versions: ContentVersion[]; screenshots: string[]; docs: string[];
-  autoSync: AutoSyncConfig | null;
-  autoSyncs?: AutoSyncConfig[];
-}
-
-type Tab = 'play' | 'versions' | 'screenshots' | 'docs' | 'sync';
-
 // ── Icons ──────────────────────────────────────────────────────
-const PlayIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+const PlayIcon   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+const DlIcon     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
 const UploadIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
-const SyncIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
-const BackIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
+const SyncIcon   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+const BackIcon   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
 
-const isVideoUrl = (url: string) =>
-  /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(url);
+interface Props { kind: ContentKind }
 
-const isVideoEmbedUrl = (url: string) =>
-  /^https?:\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/embed\/|player\.vimeo\.com\/video\/)/i.test(url);
+type Tab = 'view' | 'versions' | 'screenshots' | 'docs' | 'sync';
 
-const playableEmbedUrl = (url: string) => {
-  const embed = new URL(url);
-
-  if (/youtube(?:-nocookie)?\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
-    embed.searchParams.set('mute', embed.searchParams.get('mute') ?? '1');
-  }
-
-  if (/player\.vimeo\.com$/i.test(embed.hostname) && embed.searchParams.get('autoplay') === '1') {
-    embed.searchParams.set('muted', embed.searchParams.get('muted') ?? '1');
-  }
-
-  return embed.toString();
-};
-
-export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
-  const { contentId } = useParams<{ contentId: string }>();
-  const navigate = useNavigate();
+export default function ClientDetailPage({ kind }: Props) {
+  const { contentId }   = useParams<{ contentId: string }>();
+  const navigate        = useNavigate();
   const { user, token } = useAuth();
-  const { addToast } = useToast();
+  const { addToast }    = useToast();
 
-  const [manifest,     setManifest]     = useState<ClientManifest | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [tab,          setTab]          = useState<Tab>('play');
+  const [manifest,      setManifest]      = useState<ClientManifest | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [tab,           setTab]           = useState<Tab>('view');
   const [activeVersion, setActiveVersion] = useState<ContentVersion | null>(null);
 
-  // Version upload state
-  const [versionFile, setVersionFile]   = useState<File | null>(null);
-  const [versionTag,  setVersionTag]    = useState('');
-  const [changelog,   setChangelog]     = useState('');
-  const [uploading,   setUploading]     = useState(false);
+  // Version upload
+  const [vFile,      setVFile]      = useState<File | null>(null);
+  const [vTag,       setVTag]       = useState('');
+  const [vLog,       setVLog]       = useState('');
+  const [vUploading, setVUploading] = useState(false);
 
-  // Screenshot upload state
-  const [ssFile,      setSsFile]        = useState<File | null>(null);
-  const [ssUploading, setSsUploading]   = useState(false);
+  // Screenshot upload
+  const [ssFile,      setSsFile]      = useState<File | null>(null);
+  const [ssUploading, setSsUploading] = useState(false);
 
-  // Doc state
-  const [docName,     setDocName]       = useState('');
-  const [docContent,  setDocContent]    = useState('');
+  // Doc
+  const [docName,      setDocName]      = useState('');
+  const [docContent,   setDocContent]   = useState('');
   const [docUploading, setDocUploading] = useState(false);
-  const [viewingDoc,  setViewingDoc]    = useState<string | null>(null);
-  const [docText,     setDocText]       = useState('');
+  const [viewingDoc,   setViewingDoc]   = useState<string | null>(null);
+  const [docText,      setDocText]      = useState('');
 
-  // Sync state
-  const [syncUrl,     setSyncUrl]       = useState('');
-  const [syncTag,     setSyncTag]       = useState('');
-  const [syncing,     setSyncing]       = useState(false);
-  const [savingSync,  setSavingSync]    = useState(false);
+  // Sync
+  const [syncUrl,     setSyncUrl]     = useState('');
+  const [syncTag,     setSyncTag]     = useState('');
+  const [syncing,     setSyncing]     = useState(false);
+  const [savingSync,  setSavingSync]  = useState(false);
 
-  const canEdit = !!user && (CAN_UPLOAD.has(user.role) && (user.role === 'admin' || user.role === 'owner' || user.uid === manifest?.uploaderUid));
-  const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
+  const canEdit    = !!user && CAN_UPLOAD.has(user.role);
+  const endpoint   = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
+  const isSkin     = kind === 'skin';
+
+  const assetUrl = (filename: string) =>
+    `${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`;
 
   const loadManifest = useCallback(async () => {
     if (!contentId) return;
@@ -98,12 +67,11 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
       const json = await res.json() as { ok: boolean; data?: ClientManifest };
       if (json.ok && json.data) {
         setManifest(json.data);
-        const latest = json.data.versions.find(v => v.isLatest) ?? json.data.versions[0];
-        setActiveVersion(latest ?? null);
-        const firstSync = json.data.autoSyncs?.[0] ?? json.data.autoSync;
-        if (firstSync) {
-          setSyncUrl(firstSync.sourceUrl);
-          setSyncTag(firstSync.versionTag);
+        const latest = json.data.versions.find(v => v.isLatest) ?? json.data.versions[0] ?? null;
+        setActiveVersion(latest);
+        if (json.data.autoSync) {
+          setSyncUrl(json.data.autoSync.sourceUrl);
+          setSyncTag(json.data.autoSync.versionTag);
         }
       } else { addToast('Content not found', 'error'); navigate(-1); }
     } catch { addToast('Network error', 'error'); }
@@ -112,27 +80,24 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
 
   useEffect(() => { loadManifest(); }, [loadManifest]);
 
-  // ── Version upload ──────────────────────────────────────────
-  const handleVersionUpload = async () => {
-    if (!versionFile || !versionTag.trim()) { addToast('File and version tag required', 'error'); return; }
-    setUploading(true);
+  // ── Uploads ────────────────────────────────────────────────
+  const uploadVersion = async () => {
+    if (!vFile || !vTag.trim()) { addToast('File and version tag required', 'error'); return; }
+    setVUploading(true);
     const fd = new FormData();
-    fd.append('file', versionFile);
-    fd.append('versionTag', versionTag.trim());
-    fd.append('changelog', changelog);
+    fd.append('file', vFile); fd.append('versionTag', vTag.trim()); fd.append('changelog', vLog);
     try {
       const res  = await fetch(`${API}/${endpoint}/${contentId}/versions`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
       const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Version uploaded!', 'success'); setVersionFile(null); setVersionTag(''); setChangelog(''); loadManifest(); }
-      else          { addToast(json.error ?? 'Upload failed', 'error'); }
+      if (json.ok) { addToast('Version uploaded!', 'success'); setVFile(null); setVTag(''); setVLog(''); loadManifest(); }
+      else addToast(json.error ?? 'Upload failed', 'error');
     } catch { addToast('Network error', 'error'); }
-    finally { setUploading(false); }
+    finally { setVUploading(false); }
   };
 
-  // ── Screenshot upload ───────────────────────────────────────
-  const handleSsUpload = async () => {
+  const uploadScreenshot = async () => {
     if (!ssFile) { addToast('Select a file', 'error'); return; }
     setSsUploading(true);
     const fd = new FormData(); fd.append('file', ssFile);
@@ -142,13 +107,12 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
       });
       const json = await res.json() as { ok: boolean; error?: string };
       if (json.ok) { addToast('Screenshot added!', 'success'); setSsFile(null); loadManifest(); }
-      else          { addToast(json.error ?? 'Upload failed', 'error'); }
+      else addToast(json.error ?? 'Upload failed', 'error');
     } catch { addToast('Network error', 'error'); }
     finally { setSsUploading(false); }
   };
 
-  // ── Doc upload ──────────────────────────────────────────────
-  const handleDocUpload = async () => {
+  const uploadDoc = async () => {
     if (!docName.trim() || !docContent.trim()) { addToast('Name and content required', 'error'); return; }
     setDocUploading(true);
     try {
@@ -159,128 +123,41 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
       });
       const json = await res.json() as { ok: boolean; error?: string };
       if (json.ok) { addToast('Doc saved!', 'success'); setDocName(''); setDocContent(''); loadManifest(); }
-      else          { addToast(json.error ?? 'Failed', 'error'); }
+      else addToast(json.error ?? 'Failed', 'error');
     } catch { addToast('Network error', 'error'); }
     finally { setDocUploading(false); }
   };
 
-  // ── View doc ────────────────────────────────────────────────
   const viewDoc = async (filename: string) => {
-    setViewingDoc(filename);
-    setDocText('Loading…');
+    setViewingDoc(filename); setDocText('Loading…');
     try {
-      const res = await fetch(`${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`);
+      const res = await fetch(assetUrl(filename));
       setDocText(await res.text());
-    } catch { setDocText('Failed to load document.'); }
+    } catch { setDocText('Failed to load.'); }
   };
 
-
-  const authHeaders = { Authorization: `Bearer ${token}` };
-
-  const handleMetadataSave = async () => {
-    if (!manifest) return;
-    const name = window.prompt('Name', manifest.name);
-    if (name === null) return;
-    const description = window.prompt('Description', manifest.description);
-    if (description === null) return;
-    const faviconUrl = window.prompt('Favicon URL', manifest.faviconUrl);
-    if (faviconUrl === null) return;
-    const bannerUrl = window.prompt('Banner URL', manifest.bannerUrl);
-    if (bannerUrl === null) return;
-    try {
-      const res = await fetch(`${API}/${endpoint}/${contentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ name, description, faviconUrl, bannerUrl }),
-      });
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Content updated', 'success'); loadManifest(); }
-      else addToast(json.error ?? 'Update failed', 'error');
-    } catch { addToast('Network error', 'error'); }
-  };
-
-  const handleVersionEdit = async (version: ContentVersion) => {
-    const tag = window.prompt('Version tag', version.tag);
-    if (tag === null) return;
-    const changelog = window.prompt('Changelog', version.changelog);
-    if (changelog === null) return;
-    try {
-      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ tag, label: tag, changelog }),
-      });
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Version updated', 'success'); loadManifest(); }
-      else addToast(json.error ?? 'Update failed', 'error');
-    } catch { addToast('Network error', 'error'); }
-  };
-
-  const handleVersionDelete = async (version: ContentVersion) => {
-    if (!window.confirm(`Delete version ${version.tag}?`)) return;
-    try {
-      const res = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(version.tag)}`, {
-        method: 'DELETE', headers: authHeaders,
-      });
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Version deleted', 'success'); loadManifest(); }
-      else addToast(json.error ?? 'Delete failed', 'error');
-    } catch { addToast('Network error', 'error'); }
-  };
-
-  const handleDocEdit = async (filename: string) => {
-    const currentName = filename.replace(/^docs[/.]/, '').replace(/\.md$/, '');
-    const name = window.prompt('Document name', currentName);
-    if (name === null) return;
-    const content = window.prompt('Content', docText && viewingDoc === filename ? docText : '');
-    if (content === null) return;
-    try {
-      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ name, content }),
-      });
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Doc updated', 'success'); setViewingDoc(null); loadManifest(); }
-      else addToast(json.error ?? 'Update failed', 'error');
-    } catch { addToast('Network error', 'error'); }
-  };
-
-  const handleDocDelete = async (filename: string) => {
-    if (!window.confirm(`Delete ${filename.replace(/^docs[/.]/, '')}?`)) return;
-    try {
-      const res = await fetch(`${API}/${endpoint}/${contentId}/docs/${encodeURIComponent(filename)}`, {
-        method: 'DELETE', headers: authHeaders,
-      });
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast('Doc deleted', 'success'); setViewingDoc(null); loadManifest(); }
-      else addToast(json.error ?? 'Delete failed', 'error');
-    } catch { addToast('Network error', 'error'); }
-  };
-
-  // ── Save auto-sync ──────────────────────────────────────────
-  const handleSaveSync = async (disable = false, targetTag = syncTag) => {
+  const saveSync = async (disable = false) => {
     setSavingSync(true);
+    const body = disable
+      ? { disable: true }
+      : { sourceUrl: syncUrl.trim(), versionTag: syncTag.trim(), enabled: true };
     try {
-      const body = disable ? { disable: true, versionTag: targetTag.trim() } : { sourceUrl: syncUrl.trim(), versionTag: targetTag.trim(), enabled: true };
       const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
       const json = await res.json() as { ok: boolean; error?: string };
-      if (json.ok) { addToast(disable ? 'Auto-sync disabled' : 'Auto-sync saved!', 'success'); loadManifest(); }
-      else          { addToast(json.error ?? 'Failed', 'error'); }
+      if (json.ok) { addToast(disable ? 'Auto-sync disabled' : 'Saved!', 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Failed', 'error');
     } catch { addToast('Network error', 'error'); }
     finally { setSavingSync(false); }
   };
 
-  // ── Trigger sync ────────────────────────────────────────────
-  const handleTriggerSync = async (versionTag?: string) => {
+  const triggerSync = async () => {
     setSyncing(true);
     try {
-      const query = versionTag ? `?versionTag=${encodeURIComponent(versionTag)}` : '';
-      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync${query}`, {
+      const res  = await fetch(`${API}/${endpoint}/${contentId}/sync`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json() as { ok: boolean; data?: { ok: boolean; msg: string } };
@@ -291,58 +168,32 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
     finally { setSyncing(false); }
   };
 
-  // ── Asset URL ───────────────────────────────────────────────
-  const assetPath = (filename: string) =>
-    filename.replace(/^(versions|docs|screenshots)\//, '$1.');
-
-  const assetUrl = (filename: string) =>
-    `${API}/content/${contentId}/asset?path=${encodeURIComponent(assetPath(filename))}`;
-
   if (loading) return <div style={{ padding: 40, color: 'var(--text3)' }}>Loading…</div>;
   if (!manifest) return null;
 
-  const autoSyncs = manifest.autoSyncs ?? (manifest.autoSync ? [manifest.autoSync] : []);
-
+  // Tabs — same for all kinds, but label differs
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'play',        label: 'Play' },
+    { id: 'view',        label: isSkin ? 'Preview' : 'Play' },
     { id: 'versions',    label: `Versions (${manifest.versions.length})` },
     { id: 'screenshots', label: `Screenshots (${manifest.screenshots.length})` },
     { id: 'docs',        label: `Docs (${manifest.docs.length})` },
-    ...(canEdit ? [{ id: 'sync' as Tab, label: 'Auto-Sync' }] : []),
+    ...(canEdit && !isSkin ? [{ id: 'sync' as Tab, label: 'Auto-Sync' }] : []),
   ];
 
   return (
     <div style={{ minHeight: '100vh' }}>
       {/* Banner */}
       {manifest.bannerUrl && (
-        <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative', background: '#000' }}>
-          {isVideoEmbedUrl(manifest.bannerUrl) ? (
-            <iframe
-              src={playableEmbedUrl(manifest.bannerUrl)}
-              title={`${manifest.name} banner video`}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-              allowFullScreen
-            />
-          ) : isVideoUrl(manifest.bannerUrl) ? (
-            <video
-              src={manifest.bannerUrl}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              autoPlay
-              muted
-              loop
-              playsInline
-              controls
-            />
-          ) : (
-            <img src={manifest.bannerUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          )}
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, transparent 40%, var(--bg))' }} />
+        <div style={{ width: '100%', height: 200, overflow: 'hidden', position: 'relative' }}>
+          <img src={manifest.bannerUrl} alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, transparent 40%, var(--bg))' }} />
         </div>
       )}
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 24px 80px' }}>
-        {/* Back */}
+        {/* Back button */}
         <button className="btn btn-ghost btn-sm"
           onClick={() => navigate(`/${endpoint}`)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 20, marginBottom: 16 }}>
@@ -353,16 +204,22 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 24 }}>
           {manifest.faviconUrl && (
             <img src={manifest.faviconUrl} alt=""
-              style={{ width: 56, height: 56, borderRadius: 12, border: '1px solid var(--border2)', flexShrink: 0 }} />
+              style={{ width: 56, height: 56, borderRadius: 12,
+                border: '1px solid var(--border2)', flexShrink: 0, objectFit: 'cover' }} />
           )}
           <div style={{ flex: 1 }}>
             <h1 style={{ fontFamily: 'var(--font-head)', fontSize: 26, fontWeight: 800, marginBottom: 4 }}>
               {manifest.name}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>
-              by <Link to={`/profile/${manifest.uploaderUid}`} style={{ color: 'var(--accent)' }}>{manifest.author}</Link>
+              by{' '}
+              <Link to={`/profile/${manifest.uploaderUid}`} style={{ color: 'var(--accent)' }}>
+                {manifest.author}
+              </Link>
               &nbsp;·&nbsp;
-              <span style={{ color: 'var(--text3)' }}>Updated {new Date(manifest.updatedAt).toLocaleDateString()}</span>
+              <span style={{ color: 'var(--text3)' }}>
+                Updated {new Date(manifest.updatedAt).toLocaleDateString()}
+              </span>
             </p>
             {manifest.tags.length > 0 && (
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -370,17 +227,22 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
               </div>
             )}
           </div>
-          {canEdit && (
-            <button className="btn btn-ghost btn-sm" onClick={handleMetadataSave} style={{ flexShrink: 0 }}>
-              Edit details
-            </button>
-          )}
+
+          {/* CTA button — Download for skins, Play for clients/mods */}
           {activeVersion && (
-            <a href={assetUrl(activeVersion.filename)} target="_blank" rel="noopener noreferrer"
-              className="btn btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-              <PlayIcon /> Play {activeVersion.tag}
-            </a>
+            isSkin ? (
+              <a href={assetUrl(activeVersion.filename)} download
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                <DlIcon /> Download Skin
+              </a>
+            ) : (
+              <a href={assetUrl(activeVersion.filename)} target="_blank" rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                <PlayIcon /> Play {activeVersion.tag}
+              </a>
+            )
           )}
         </div>
 
@@ -391,46 +253,105 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 28 }}>
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{
-                padding: '8px 16px', border: 'none', cursor: 'pointer',
-                background: tab === t.id ? 'var(--surface2)' : 'transparent',
-                color: tab === t.id ? 'var(--text)' : 'var(--text2)',
-                fontWeight: tab === t.id ? 600 : 400, fontSize: 13,
-                borderRadius: '6px 6px 0 0', fontFamily: 'var(--font-body)',
-              }}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: '8px 16px', border: 'none', cursor: 'pointer',
+              background: tab === t.id ? 'var(--surface2)' : 'transparent',
+              color: tab === t.id ? 'var(--text)' : 'var(--text2)',
+              fontWeight: tab === t.id ? 600 : 400,
+              fontSize: 13, borderRadius: '6px 6px 0 0', fontFamily: 'var(--font-body)',
+            }}>{t.label}</button>
           ))}
         </div>
 
-        {/* ── Play tab ── */}
-        {tab === 'play' && activeVersion && (
+        {/* ── View/Preview tab ── */}
+        {tab === 'view' && activeVersion && (
           <div>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 20 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  Playing: <span style={{ color: 'var(--accent)' }}>{activeVersion.tag}</span>
-                </span>
-                <select
-                  value={activeVersion.tag}
-                  onChange={e => setActiveVersion(manifest.versions.find(v => v.tag === e.target.value) ?? null)}
-                  className="form-select"
-                  style={{ width: 'auto', fontSize: 12, padding: '4px 8px' }}>
-                  {manifest.versions.map(v => (
-                    <option key={v.tag} value={v.tag}>{v.tag}{v.isLatest ? ' (latest)' : ''}</option>
-                  ))}
-                </select>
+            {isSkin ? (
+              /* Skin preview */
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <div style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)', padding: 32,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+                }}>
+                  {/* Skin image — rendered large with pixelated scaling like MC */}
+                  <img
+                    src={assetUrl(activeVersion.filename)}
+                    alt={manifest.name}
+                    style={{
+                      width: 256, height: 256,
+                      imageRendering: 'pixelated',
+                      objectFit: 'contain',
+                      background: 'repeating-conic-gradient(#1a1f2c 0% 25%, #141820 0% 50%) 0 0 / 16px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border2)',
+                    }}
+                  />
+                  <p style={{ fontSize: 12, color: 'var(--text3)' }}>
+                    64×64 Minecraft skin — pixel-perfect preview
+                  </p>
+                  <a href={assetUrl(activeVersion.filename)} download={`${manifest.name}.png`}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <DlIcon /> Download Skin (.png)
+                  </a>
+                </div>
               </div>
-              <iframe
-                src={assetUrl(activeVersion.filename)}
-                style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block', background: '#000' }}
-                allow="fullscreen; autoplay; pointer-lock"
-                allowFullScreen
-              />
-            </div>
-            {activeVersion.changelog && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Changelog</p>
-                <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{activeVersion.changelog}</p>
+            ) : (
+              /* Client / Mod — iframe play */
+              <div>
+                <div style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 16,
+                }}>
+                  {/* Version selector bar */}
+                  <div style={{
+                    padding: '10px 16px', borderBottom: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>
+                      Playing:{' '}
+                      <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                        {activeVersion.tag}
+                      </span>
+                    </span>
+                    {manifest.versions.length > 1 && (
+                      <select
+                        value={activeVersion.tag}
+                        onChange={e => setActiveVersion(
+                          manifest.versions.find(v => v.tag === e.target.value) ?? null
+                        )}
+                        className="form-select"
+                        style={{ width: 'auto', fontSize: 12, padding: '4px 8px' }}>
+                        {manifest.versions.map(v => (
+                          <option key={v.tag} value={v.tag}>
+                            {v.tag}{v.isLatest ? ' (latest)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <iframe
+                    src={assetUrl(activeVersion.filename)}
+                    style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block', background: '#000' }}
+                    allow="fullscreen; autoplay; pointer-lock"
+                    allowFullScreen
+                  />
+                </div>
+                {activeVersion.changelog && (
+                  <div style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '14px 16px',
+                  }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+                      textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                      Changelog
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+                      {activeVersion.changelog}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -439,51 +360,122 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         {/* ── Versions tab ── */}
         {tab === 'versions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {manifest.versions.map(v => (
-              <div key={v.tag} style={{
-                background: 'var(--surface)', border: `1px solid ${v.isLatest ? 'rgba(79,124,255,0.3)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-lg)', padding: '14px 18px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>{v.tag}</span>
-                    {v.isLatest && <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--accent-dim)', color: 'var(--accent)', padding: '2px 7px', borderRadius: 4, textTransform: 'uppercase' }}>latest</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(v.uploadedAt).toLocaleDateString()}</span>
-                    {canEdit && (<>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionEdit(v)}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleVersionDelete(v)}>Delete</button>
-                    </>)}
-                    <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
-                      className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <PlayIcon /> Play
-                    </a>
-                  </div>
+            {isSkin ? (
+              /* Skin version grid — pixelated preview per version */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14, marginBottom: 16 }}>
+                  {manifest.versions.map(v => (
+                    <div key={v.tag} style={{
+                      background: 'var(--surface)',
+                      border: `2px solid ${v.isLatest ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+                      cursor: 'pointer', transition: 'border-color 120ms',
+                    }} onClick={() => setActiveVersion(v)}>
+                      <div style={{
+                        background: 'repeating-conic-gradient(#1a1f2c 0% 25%, #141820 0% 50%) 0 0 / 10px 10px',
+                        padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        aspectRatio: '1/1',
+                      }}>
+                        <img
+                          src={assetUrl(v.filename)}
+                          alt={v.tag}
+                          style={{ width: '80%', height: '80%', objectFit: 'contain', imageRendering: 'pixelated' }}
+                        />
+                      </div>
+                      <div style={{ padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{v.tag}</span>
+                          {v.isLatest && (
+                            <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                              background: 'var(--accent-dim)', color: 'var(--accent)', textTransform: 'uppercase' }}>
+                              latest
+                            </span>
+                          )}
+                        </div>
+                        {v.changelog && (
+                          <p style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.5,
+                            overflow: 'hidden', display: '-webkit-box',
+                            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {v.changelog}
+                          </p>
+                        )}
+                        <a href={assetUrl(v.filename)} download={`${manifest.name}-${v.tag}.png`}
+                          className="btn btn-ghost btn-sm"
+                          onClick={e => e.stopPropagation()}
+                          style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '4px 8px' }}>
+                          <DlIcon /> Download
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {v.changelog && <p style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{v.changelog}</p>}
-              </div>
-            ))}
+              </>
+            ) : (
+              /* Client / Mod version list */
+              manifest.versions.map(v => (
+                <div key={v.tag} style={{
+                  background: 'var(--surface)',
+                  border: `1px solid ${v.isLatest ? 'rgba(79,124,255,0.3)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-lg)', padding: '14px 18px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>{v.tag}</span>
+                      {v.isLatest && (
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                          background: 'var(--accent-dim)', color: 'var(--accent)', textTransform: 'uppercase' }}>
+                          latest
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                        {new Date(v.uploadedAt).toLocaleDateString()}
+                      </span>
+                      <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <PlayIcon /> Play
+                      </a>
+                    </div>
+                  </div>
+                  {v.changelog && (
+                    <p style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                      {v.changelog}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
 
+            {/* Upload new version — works for both skins and clients */}
             {canEdit && (
-              <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 'var(--radius-lg)', padding: 20, marginTop: 8 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Upload New Version</h3>
+              <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)',
+                borderRadius: 'var(--radius-lg)', padding: 20, marginTop: 8 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>
+                  Upload New {isSkin ? 'Skin' : 'Version'}
+                </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <F label="Version tag (e.g. v2.0)">
-                    <input className="form-input" placeholder="v2.0" value={versionTag} onChange={e => setVersionTag(e.target.value)} />
+                  <F label={isSkin ? 'Version tag (e.g. Ocean v2)' : 'Version tag (e.g. v2.0)'}>
+                    <input className="form-input"
+                      placeholder={isSkin ? 'Ocean v2' : 'v2.0'}
+                      value={vTag} onChange={e => setVTag(e.target.value)} />
                   </F>
-                  <F label="File (.html, .js)">
-                    <input type="file" accept=".html,.js,.png,.jpg,.webp,.gif"
-                      onChange={e => setVersionFile(e.target.files?.[0] ?? null)}
+                  <F label={isSkin ? 'Skin file (.png)' : 'File (.html, .js)'}>
+                    <input type="file"
+                      accept={isSkin ? '.png,.jpg,.jpeg,.gif,.webp' : '.html,.js'}
+                      onChange={e => setVFile(e.target.files?.[0] ?? null)}
                       style={{ color: 'var(--text2)', fontSize: 13 }} />
                   </F>
-                  <F label="Changelog (optional)">
-                    <textarea className="form-textarea" rows={3} placeholder="What changed in this version…"
-                      value={changelog} onChange={e => setChangelog(e.target.value)} />
+                  <F label={isSkin ? 'Description (optional)' : 'Changelog'}>
+                    <textarea className="form-textarea" rows={2}
+                      placeholder={isSkin ? 'What\'s different in this skin…' : 'What changed…'}
+                      value={vLog} onChange={e => setVLog(e.target.value)} />
                   </F>
-                  <button className="btn btn-primary" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
-                    onClick={handleVersionUpload} disabled={uploading}>
-                    <UploadIcon />{uploading ? 'Uploading…' : 'Upload Version'}
+                  <button className="btn btn-primary"
+                    style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
+                    onClick={uploadVersion} disabled={vUploading}>
+                    <UploadIcon />{vUploading ? 'Uploading…' : `Upload ${isSkin ? 'Skin' : 'Version'}`}
                   </button>
                 </div>
               </div>
@@ -494,28 +486,34 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
         {/* ── Screenshots tab ── */}
         {tab === 'screenshots' && (
           <div>
-            {manifest.screenshots.length === 0 ? (
+            {manifest.screenshots.length === 0 && !canEdit && (
               <div className="empty"><h3>No screenshots yet</h3></div>
-            ) : (
+            )}
+            {manifest.screenshots.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginBottom: 24 }}>
                 {manifest.screenshots.map(s => (
                   <a key={s} href={assetUrl(s)} target="_blank" rel="noopener noreferrer">
-                    <img src={assetUrl(s)} alt="" style={{ width: '100%', borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'block', aspectRatio: '16/9', objectFit: 'cover' }} />
+                    <img src={assetUrl(s)} alt=""
+                      style={{ width: '100%', borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)', display: 'block',
+                        aspectRatio: '16/9', objectFit: 'cover' }} />
                   </a>
                 ))}
               </div>
             )}
             {canEdit && (
-              <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Add Screenshot</h3>
+              <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)',
+                borderRadius: 'var(--radius-lg)', padding: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>
+                  Add {isSkin ? 'Preview Image' : 'Screenshot'}
+                </h3>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp"
-                      onChange={e => setSsFile(e.target.files?.[0] ?? null)}
-                      style={{ color: 'var(--text2)', fontSize: 13 }} />
-                  </div>
-                  <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5 }}
-                    onClick={handleSsUpload} disabled={ssUploading}>
+                  <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp"
+                    onChange={e => setSsFile(e.target.files?.[0] ?? null)}
+                    style={{ color: 'var(--text2)', fontSize: 13, flex: 1 }} />
+                  <button className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                    onClick={uploadScreenshot} disabled={ssUploading}>
                     <UploadIcon />{ssUploading ? 'Uploading…' : 'Upload'}
                   </button>
                 </div>
@@ -529,40 +527,52 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {viewingDoc ? (
               <div>
-                <button className="btn btn-ghost btn-sm" onClick={() => setViewingDoc(null)} style={{ marginBottom: 12 }}>← Back to docs</button>
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-                  <pre style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{docText}</pre>
+                <button className="btn btn-ghost btn-sm"
+                  onClick={() => setViewingDoc(null)} style={{ marginBottom: 12 }}>
+                  ← Back to docs
+                </button>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)', padding: 20 }}>
+                  <pre style={{ fontFamily: 'var(--font-body)', fontSize: 13,
+                    color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                    {docText}
+                  </pre>
                 </div>
               </div>
             ) : (
               <>
-                {manifest.docs.length === 0 && !canEdit && <div className="empty"><h3>No docs yet</h3></div>}
+                {manifest.docs.length === 0 && !canEdit && (
+                  <div className="empty"><h3>No docs yet</h3></div>
+                )}
                 {manifest.docs.map(d => (
-                  <div key={d} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{d.replace(/^docs[/.]/, '')}</span>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>View</button>
-                      {canEdit && (<>
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocEdit(d)}>Edit</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleDocDelete(d)}>Delete</button>
-                      </>)}
-                    </div>
+                  <div key={d} style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>
+                      {d.replace('docs/', '').replace('.md', '')}
+                    </span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => viewDoc(d)}>Read</button>
                   </div>
                 ))}
                 {canEdit && (
-                  <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 'var(--radius-lg)', padding: 20, marginTop: 8 }}>
+                  <div style={{ background: 'var(--surface)', border: '1px dashed var(--border2)',
+                    borderRadius: 'var(--radius-lg)', padding: 20, marginTop: 8 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Add Documentation</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <F label="Document name">
-                        <input className="form-input" placeholder="getting-started" value={docName} onChange={e => setDocName(e.target.value)} />
+                        <input className="form-input" placeholder="getting-started"
+                          value={docName} onChange={e => setDocName(e.target.value)} />
                       </F>
                       <F label="Content (Markdown)">
-                        <textarea className="form-textarea" rows={8} placeholder="# Getting Started&#10;…"
+                        <textarea className="form-textarea" rows={8}
+                          placeholder="# Getting Started&#10;…"
                           value={docContent} onChange={e => setDocContent(e.target.value)}
                           style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }} />
                       </F>
                       <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }}
-                        onClick={handleDocUpload} disabled={docUploading}>
+                        onClick={uploadDoc} disabled={docUploading}>
                         {docUploading ? 'Saving…' : 'Save Doc'}
                       </button>
                     </div>
@@ -573,69 +583,88 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
           </div>
         )}
 
-        {/* ── Auto-Sync tab ── */}
-        {tab === 'sync' && canEdit && (
+        {/* ── Auto-Sync tab (clients/mods only, canEdit only) ── */}
+        {tab === 'sync' && canEdit && !isSkin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {autoSyncs.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {autoSyncs.map(config => (
-                  <div key={config.versionTag} style={{ background: 'var(--surface)', border: `1px solid ${config.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 18 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Auto-Sync: {config.versionTag}</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                      <p><span style={{ color: 'var(--text3)' }}>URL:</span> <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{config.sourceUrl}</code></p>
-                      {config.lastSyncAt && (
-                        <p><span style={{ color: 'var(--text3)' }}>Last sync:</span> <span style={{ color: 'var(--text2)' }}>{new Date(config.lastSyncAt).toLocaleString()}</span>
-                          &nbsp;<span style={{ color: config.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
-                            {config.lastSyncOk ? '✓ OK' : '✗ Failed'}
-                          </span>
-                        </p>
-                      )}
-                      {config.lastSyncMsg && (
-                        <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>{config.lastSyncMsg}</p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                      <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                        onClick={() => handleTriggerSync(config.versionTag)} disabled={syncing}>
-                        <SyncIcon />{syncing ? 'Syncing…' : 'Sync This Version'}
-                      </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setSyncUrl(config.sourceUrl); setSyncTag(config.versionTag); }}>
-                        Edit Config
-                      </button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleSaveSync(true, config.versionTag)} disabled={savingSync}>
-                        Disable
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
-                  onClick={() => handleTriggerSync()} disabled={syncing}>
-                  <SyncIcon />{syncing ? 'Syncing…' : 'Sync All Configs'}
-                </button>
+            {manifest.autoSync && (
+              <div style={{
+                background: 'var(--surface)',
+                border: `1px solid ${manifest.autoSync.lastSyncOk === false ? 'rgba(240,82,82,0.3)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius-lg)', padding: 18,
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+                  textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                  Sync Status
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                  <p>
+                    <span style={{ color: 'var(--text3)' }}>URL: </span>
+                    <code style={{ color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                      {manifest.autoSync.sourceUrl}
+                    </code>
+                  </p>
+                  <p>
+                    <span style={{ color: 'var(--text3)' }}>Target: </span>
+                    <code style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                      {manifest.autoSync.versionTag}
+                    </code>
+                  </p>
+                  {manifest.autoSync.lastSyncAt && (
+                    <p>
+                      <span style={{ color: 'var(--text3)' }}>Last sync: </span>
+                      <span style={{ color: 'var(--text2)' }}>
+                        {new Date(manifest.autoSync.lastSyncAt).toLocaleString()}
+                      </span>
+                      &nbsp;
+                      <span style={{ color: manifest.autoSync.lastSyncOk ? 'var(--green)' : 'var(--red)' }}>
+                        {manifest.autoSync.lastSyncOk ? '✓ OK' : '✗ Failed'}
+                      </span>
+                    </p>
+                  )}
+                  {manifest.autoSync.lastSyncMsg && (
+                    <p style={{ color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                      {manifest.autoSync.lastSyncMsg}
+                    </p>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <button className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    onClick={triggerSync} disabled={syncing}>
+                    <SyncIcon />{syncing ? 'Syncing…' : 'Sync Now'}
+                  </button>
+                  <button className="btn btn-danger btn-sm"
+                    onClick={() => saveSync(true)} disabled={savingSync}>
+                    Disable
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Config form */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>
-                {autoSyncs.some(c => c.versionTag === syncTag) ? 'Update Auto-Sync Config' : 'Add Auto-Sync Config'}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', padding: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+                {manifest.autoSync ? 'Update' : 'Enable'} Auto-Sync
               </h3>
               <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.6 }}>
-                Add one source URL per version. Each saved config targets a single version, and Sync All will update every enabled version config.
+                Provide a public URL to a raw file. When triggered, the worker fetches it and
+                replaces the selected version in GitHub Releases automatically.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <F label="Source URL (raw file link)">
+                <F label="Source URL">
                   <input className="form-input" placeholder="https://example.com/client.html"
                     value={syncUrl} onChange={e => setSyncUrl(e.target.value)} />
                 </F>
-                <F label="Version to update" hint="Each version can have its own auto-sync URL">
+                <F label="Version to update" hint="Which version tag gets replaced on each sync">
                   <select className="form-select" value={syncTag} onChange={e => setSyncTag(e.target.value)}>
                     <option value="">Select version…</option>
-                    {manifest.versions.map(v => <option key={v.tag} value={v.tag}>{v.tag}</option>)}
+                    {manifest.versions.map(v => (
+                      <option key={v.tag} value={v.tag}>{v.tag}</option>
+                    ))}
                   </select>
                 </F>
-                <button className="btn btn-primary" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
-                  onClick={() => handleSaveSync(false)} disabled={savingSync || !syncUrl.trim() || !syncTag}>
+                <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }}
+                  onClick={() => saveSync(false)} disabled={savingSync || !syncUrl.trim() || !syncTag}>
                   {savingSync ? 'Saving…' : 'Save Auto-Sync Config'}
                 </button>
               </div>
@@ -650,7 +679,8 @@ export default function ClientDetailPage({ kind }: { kind: ContentKind }) {
 function F({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</label>
+      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)',
+        textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</label>
       {children}
       {hint && <p style={{ fontSize: 11, color: 'var(--text3)' }}>{hint}</p>}
     </div>
