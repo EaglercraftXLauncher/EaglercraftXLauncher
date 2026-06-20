@@ -27,6 +27,14 @@ export interface ContentEntry {
   latestTag?: string | null;
   downloadCount?: number;
 }
+// Add to ContentEntry or create ModManifest extension
+export interface ModMetadata extends ContentEntry {
+  minecraftVersion: string;        // e.g. "1.8", "1.12", "1.8-1.12"
+  loader: "eaglerforge";           // Enforced — no other loaders
+  eaglerforgeOnly: true;
+  injectionMethod?: "url" | "param" | "injector";  // How mods are loaded
+  dependencies?: string[];         // Other mod contentIds
+}
 
 export interface IndexEntry extends ContentEntry {}
 
