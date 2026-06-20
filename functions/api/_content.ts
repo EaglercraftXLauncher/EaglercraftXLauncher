@@ -117,6 +117,14 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
   return ok({ contentId, name }, env, 201);
 }
 
+// After tags parsing
+const minecraftVersion = form.get("minecraftVersion")?.toString().trim();
+if (kind === "mod" && (!minecraftVersion || !["1.8", "1.12"].includes(minecraftVersion))) {
+  return fail("Mods require valid minecraftVersion (1.8 or 1.12)", env, 400);
+}
+
+const manifest = { ... , minecraftVersion, loader: "eaglerforge", eaglerforgeOnly: true };
+
 // ── Add version ────────────────────────────────────────────────
 export async function uploadVersion(req: Request, env: Env, contentId: string): Promise<Response> {
   const allowed = await canManageContent(req, env, contentId);
