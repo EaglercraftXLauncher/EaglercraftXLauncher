@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import SkinViewer3D from '../components/SkinViewer3D';
 import type { ContentKind, ClientManifest, ContentVersion } from '../types';
 
 const API = '/api';
@@ -356,13 +357,11 @@ export default function ClientDetailPage({ kind }: Props) {
                   borderRadius: 'var(--radius-lg)', padding: 32,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
                 }}>
-                  <img src={assetUrl(activeVersion.filename)} alt={manifest.name}
-                    style={{
-                      width: 256, height: 256, imageRendering: 'pixelated', objectFit: 'contain',
-                      background: 'repeating-conic-gradient(#1a1f2c 0% 25%, #141820 0% 50%) 0 0 / 16px 16px',
-                      borderRadius: 8, border: '1px solid var(--border2)',
-                    }} />
-                  <p style={{ fontSize: 12, color: 'var(--text3)' }}>64×64 Minecraft skin — pixel-perfect preview</p>
+                  {/* Live rotating 3D skin preview, powered by skinview3d */}
+                  <SkinViewer3D skinUrl={assetUrl(activeVersion.filename)} width={280} height={380} />
+                  <p style={{ fontSize: 12, color: 'var(--text3)' }}>
+                    Drag to rotate · scroll to zoom · 3D preview via skinview3d
+                  </p>
                   <a href={assetUrl(activeVersion.filename)} download={`${manifest.name}.png`}
                     className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <DlIcon /> Download Skin (.png)
