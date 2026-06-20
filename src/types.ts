@@ -74,4 +74,6 @@ export interface ClientManifest {
   docs: string[];
   autoSync: AutoSyncConfig | null;
   autoSyncs?: AutoSyncConfig[];
+  supportedMcVersions?: string[];  // e.g. ["1.8", "1.12"]
+  isForgeReady?: boolean;          // Pre-injected clients
 }
