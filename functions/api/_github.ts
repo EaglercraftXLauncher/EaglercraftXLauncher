@@ -5,6 +5,7 @@ export type ContentKind = "client" | "mod" | "skin";
 export interface ContentVersion {
   tag: string; filename: string; label: string;
   changelog: string; uploadedAt: string; isLatest: boolean;
+  mcVersion?: "1.8" | "1.12";       // mods only — Minecraft version this mod targets
 }
 export interface AutoSyncConfig {
   enabled: boolean; sourceUrl: string; versionTag: string;
@@ -17,11 +18,15 @@ export interface ClientManifest {
   versions: ContentVersion[]; screenshots: string[]; docs: string[];
   autoSync: AutoSyncConfig | null;
   autoSyncs?: AutoSyncConfig[];
+  forgeReady?: boolean;              // clients only — true if pre-injected with EaglerForge ModAPI
+  mcVersion?: "1.8" | "1.12";        // clients only — required when forgeReady is true
 }
 export interface IndexEntry {
   contentId: string; kind: ContentKind; name: string; author: string;
   faviconUrl: string; posterUrl: string; description: string;
   uploaderUid: string; createdAt: string; latestTag: string | null;
+  forgeReady?: boolean;
+  mcVersion?: "1.8" | "1.12";
 }
 
 const INDEX_FILE: Record<ContentKind, string> = {
@@ -119,6 +124,13 @@ export async function readIndex(env: Env, kind: ContentKind): Promise<IndexEntry
   return decodeIndex(file.content);
 }
 
+// Forge-ready base clients, optionally filtered by Minecraft version.
+// Used by the mod play UI to populate "pick a base client" choices.
+export async function listForgeReadyClients(env: Env, mcVersion?: "1.8" | "1.12"): Promise<IndexEntry[]> {
+  const all = await readIndex(env, "client");
+  return all.filter(e => e.forgeReady && (!mcVersion || e.mcVersion === mcVersion));
+}
+
 export async function appendIndex(env: Env, entry: IndexEntry): Promise<void> {
   const path = INDEX_FILE[entry.kind];
   const file = await getFileMeta(env, path);
@@ -199,6 +211,7 @@ export async function createContent(env: Env, manifest: ClientManifest, fileData
       faviconUrl: manifest.faviconUrl, posterUrl: manifest.posterUrl,
       uploaderUid: manifest.uploaderUid, createdAt: manifest.createdAt,
       latestTag: manifest.versions[0].tag,
+      forgeReady: manifest.forgeReady, mcVersion: manifest.mcVersion,
     };
     await appendIndex(env, indexEntry);
   } catch (e) {
@@ -252,7 +265,7 @@ export async function addDoc(env: Env, contentId: string, docName: string, conte
   await saveManifest(env, release.id, manifest, release.assets);
 }
 
-export async function updateContentMetadata(env: Env, contentId: string, updates: Partial<Pick<ClientManifest, "name" | "description" | "faviconUrl" | "posterUrl" | "bannerUrl" | "tags">>): Promise<ClientManifest> {
+export async function updateContentMetadata(env: Env, contentId: string, updates: Partial<Pick<ClientManifest, "name" | "description" | "faviconUrl" | "posterUrl" | "bannerUrl" | "tags" | "forgeReady" | "mcVersion">>): Promise<ClientManifest> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
   const manifest = await getManifest(env, contentId);
@@ -263,16 +276,18 @@ export async function updateContentMetadata(env: Env, contentId: string, updates
   if (updates.posterUrl !== undefined) manifest.posterUrl = updates.posterUrl;
   if (updates.bannerUrl !== undefined) manifest.bannerUrl = updates.bannerUrl;
   if (updates.tags !== undefined) manifest.tags = updates.tags.slice(0, 15);
+  if (updates.forgeReady !== undefined) manifest.forgeReady = updates.forgeReady;
+  if (updates.mcVersion !== undefined) manifest.mcVersion = updates.mcVersion;
   manifest.updatedAt = new Date().toISOString();
   await saveManifest(env, release.id, manifest, release.assets);
   await updateIndexEntry(env, manifest.kind, contentId, {
     name: manifest.name, description: manifest.description, faviconUrl: manifest.faviconUrl,
-    posterUrl: manifest.posterUrl,
+    posterUrl: manifest.posterUrl, forgeReady: manifest.forgeReady, mcVersion: manifest.mcVersion,
   });
   return manifest;
 }
 
-export async function updateVersionMetadata(env: Env, contentId: string, oldTag: string, updates: Partial<Pick<ContentVersion, "tag" | "label" | "changelog" | "isLatest">>): Promise<ClientManifest> {
+export async function updateVersionMetadata(env: Env, contentId: string, oldTag: string, updates: Partial<Pick<ContentVersion, "tag" | "label" | "changelog" | "isLatest" | "mcVersion">>): Promise<ClientManifest> {
   const release = await getRelease(env, contentId);
   if (!release) throw new Error("Release not found");
   const manifest = await getManifest(env, contentId);
@@ -282,6 +297,7 @@ export async function updateVersionMetadata(env: Env, contentId: string, oldTag:
   if (updates.tag !== undefined) version.tag = updates.tag.slice(0, 80);
   if (updates.label !== undefined) version.label = updates.label.slice(0, 80);
   if (updates.changelog !== undefined) version.changelog = updates.changelog.slice(0, 2000);
+  if (updates.mcVersion !== undefined) version.mcVersion = updates.mcVersion;
   if (updates.isLatest) manifest.versions = manifest.versions.map(v => ({ ...v, isLatest: v === version }));
   manifest.updatedAt = new Date().toISOString();
   await saveManifest(env, release.id, manifest, release.assets);
