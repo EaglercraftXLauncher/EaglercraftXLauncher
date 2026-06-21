@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import SkinViewer3D from '../components/SkinViewer3D';
+import { buildModLaunchUrl, type ForgeReadyClient, type MinecraftVersion } from '../lib/eaglerforgeInjector';
 import type { ContentKind, ClientManifest, ContentVersion } from '../types';
 
 const API = '/api';
@@ -37,6 +38,7 @@ export default function ClientDetailPage({ kind }: Props) {
   const [vTag,       setVTag]       = useState('');
   const [vLog,       setVLog]       = useState('');
   const [vUploading, setVUploading] = useState(false);
+  const [vMcVersion, setVMcVersion] = useState<'1.8' | '1.12'>('1.12');
 
   // Version editing
   const [editingVersion, setEditingVersion] = useState<string | null>(null); // tag being edited
@@ -74,6 +76,12 @@ export default function ClientDetailPage({ kind }: Props) {
   const canEdit  = !!user && CAN_UPLOAD.has(user.role);
   const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
   const isSkin   = kind === 'skin';
+  const isMod    = kind === 'mod';
+
+  // EaglerForge: mods need a compatible pre-injected base client to run against
+  const [baseClients,        setBaseClients]        = useState<ForgeReadyClient[]>([]);
+  const [baseClientsLoading, setBaseClientsLoading]  = useState(false);
+  const [selectedBaseId,     setSelectedBaseId]      = useState<string>('');
 
   const assetUrl = (filename: string) =>
     `${API}/content/${contentId}/asset?path=${encodeURIComponent(filename)}`;
@@ -104,12 +112,59 @@ export default function ClientDetailPage({ kind }: Props) {
 
   useEffect(() => { loadManifest(); }, [loadManifest]);
 
+  // For mods: fetch EaglerForge-ready base clients matching this mod's
+  // Minecraft version, so the player can pick one to inject the mod into.
+  // The index only has lightweight entries, so we resolve each candidate's
+  // full manifest to get its actual latest-version asset filename.
+  useEffect(() => {
+    if (!isMod || !activeVersion?.mcVersion) { setBaseClients([]); return; }
+    let cancelled = false;
+    setBaseClientsLoading(true);
+
+    (async () => {
+      try {
+        const listRes  = await fetch(`${API}/clients/forge-ready?mcVersion=${activeVersion.mcVersion}`);
+        const listJson = await listRes.json() as { ok: boolean; data?: { items: Array<{ contentId: string }> } };
+        if (cancelled || !listJson.ok || !listJson.data) { setBaseClients([]); return; }
+
+        const resolved = await Promise.all(listJson.data.items.map(async (entry): Promise<ForgeReadyClient | null> => {
+          const res  = await fetch(`${API}/clients/${entry.contentId}`);
+          const json = await res.json() as { ok: boolean; data?: ClientManifest };
+          if (!json.ok || !json.data) return null;
+          const m = json.data;
+          const latest = m.versions.find(v => v.isLatest) ?? m.versions[0];
+          if (!latest || !m.mcVersion) return null;
+          return {
+            contentId: m.contentId,
+            name: m.name,
+            mcVersion: m.mcVersion,
+            assetUrl: assetUrl(latest.filename),
+          };
+        }));
+
+        if (cancelled) return;
+        const clients = resolved.filter((c): c is ForgeReadyClient => c !== null);
+        setBaseClients(clients);
+        if (clients.length > 0) setSelectedBaseId(prev => prev || clients[0].contentId);
+      } catch {
+        if (!cancelled) setBaseClients([]);
+      } finally {
+        if (!cancelled) setBaseClientsLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMod, activeVersion?.mcVersion]);
+
   // ── Version upload ─────────────────────────────────────────
   const uploadVersion = async () => {
     if (!vFile || !vTag.trim()) { addToast('File and version tag required', 'error'); return; }
+    if (isMod && !vMcVersion) { addToast('Select a Minecraft version', 'error'); return; }
     setVUploading(true);
     const fd = new FormData();
     fd.append('file', vFile); fd.append('versionTag', vTag.trim()); fd.append('changelog', vLog);
+    if (isMod) fd.append('mcVersion', vMcVersion);
     try {
       const res  = await fetch(`${API}/${endpoint}/${contentId}/versions`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
@@ -256,6 +311,23 @@ export default function ClientDetailPage({ kind }: Props) {
     finally { setSettingsSaving(false); }
   };
 
+  const selectedBaseClient = baseClients.find(c => c.contentId === selectedBaseId) ?? null;
+
+  const modLaunch = useMemo((): { url: string | null; error: string | null } => {
+    if (!isMod || !activeVersion || !selectedBaseClient) return { url: null, error: null };
+    try {
+      const url = buildModLaunchUrl(selectedBaseClient, [{
+        name: manifest?.name ?? 'mod',
+        assetUrl: assetUrl(activeVersion.filename),
+        mcVersion: (activeVersion.mcVersion ?? selectedBaseClient.mcVersion) as MinecraftVersion,
+      }]);
+      return { url, error: null };
+    } catch (e) {
+      return { url: null, error: e instanceof Error ? e.message : 'Could not build launch URL' };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMod, activeVersion, selectedBaseClient, manifest?.name]);
+
   if (loading) return <div style={{ padding: 40, color: 'var(--text3)' }}>Loading…</div>;
   if (!manifest) return null;
 
@@ -367,6 +439,85 @@ export default function ClientDetailPage({ kind }: Props) {
                     <DlIcon /> Download Skin (.png)
                   </a>
                 </div>
+              </div>
+            ) : isMod ? (
+              <div>
+                {/* EaglerForge base-client picker */}
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)', padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>EaglerForge mod</span>
+                    {activeVersion.mcVersion && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        background: 'var(--accent-dim)', color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                        MC {activeVersion.mcVersion}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 14 }}>
+                    This mod runs through EaglerForge's mod loader. Pick an EaglerForge-ready base client
+                    built for Minecraft {activeVersion.mcVersion ?? 'the matching version'} — the mod will
+                    be injected automatically when it loads.
+                  </p>
+
+                  {baseClientsLoading ? (
+                    <p style={{ fontSize: 12, color: 'var(--text3)' }}>Looking for compatible base clients…</p>
+                  ) : baseClients.length === 0 ? (
+                    <div style={{ background: 'var(--orange-dim)', border: '1px solid rgba(245,158,66,0.3)',
+                      borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                      <p style={{ fontSize: 12, color: 'var(--orange)', lineHeight: 1.6 }}>
+                        No EaglerForge-ready base clients found for Minecraft {activeVersion.mcVersion}.
+                        {canEdit && ' Upload a client and mark it "EaglerForge support" in the upload form to make one available.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <F label="Base client">
+                      <select className="form-select" value={selectedBaseId}
+                        onChange={e => setSelectedBaseId(e.target.value)}>
+                        {baseClients.map(c => (
+                          <option key={c.contentId} value={c.contentId}>{c.name}</option>
+                        ))}
+                      </select>
+                    </F>
+                  )}
+                </div>
+
+                {modLaunch.error && (
+                  <div style={{ background: 'var(--red-dim)', border: '1px solid rgba(240,82,82,0.3)',
+                    borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
+                    <p style={{ fontSize: 12, color: 'var(--red)' }}>{modLaunch.error}</p>
+                  </div>
+                )}
+
+                {modLaunch.url && (
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 16 }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>
+                        Running on:{' '}
+                        <span style={{ color: 'var(--accent)' }}>{selectedBaseClient?.name}</span>
+                        {' '}with{' '}
+                        <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                          {manifest.name} {activeVersion.tag}
+                        </span>{' '}injected
+                      </span>
+                    </div>
+                    <iframe src={modLaunch.url} key={modLaunch.url}
+                      style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block', background: '#000' }}
+                      allow="fullscreen; autoplay; pointer-lock" allowFullScreen />
+                  </div>
+                )}
+
+                {activeVersion.changelog && (
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+                      textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Changelog</p>
+                    <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+                      {activeVersion.changelog}
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -493,6 +644,12 @@ export default function ClientDetailPage({ kind }: Props) {
                             <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
                               background: 'var(--accent-dim)', color: 'var(--accent)', textTransform: 'uppercase' }}>latest</span>
                           )}
+                          {isMod && v.mcVersion && (
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                              background: 'var(--surface3)', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
+                              MC {v.mcVersion}
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <span style={{ fontSize: 11, color: 'var(--text3)' }}>
@@ -513,11 +670,20 @@ export default function ClientDetailPage({ kind }: Props) {
                               </button>
                             </>
                           )}
-                          <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
-                            className="btn btn-primary btn-sm"
-                            style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <PlayIcon /> Play
-                          </a>
+                          {isMod ? (
+                            <button
+                              onClick={() => { setActiveVersion(v); setTab('view'); }}
+                              className="btn btn-primary btn-sm"
+                              style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <PlayIcon /> Play
+                            </button>
+                          ) : (
+                            <a href={assetUrl(v.filename)} target="_blank" rel="noopener noreferrer"
+                              className="btn btn-primary btn-sm"
+                              style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <PlayIcon /> Play
+                            </a>
+                          )}
                         </div>
                       </div>
                       {v.changelog && (
@@ -548,6 +714,15 @@ export default function ClientDetailPage({ kind }: Props) {
                       onChange={e => setVFile(e.target.files?.[0] ?? null)}
                       style={{ color: 'var(--text2)', fontSize: 13 }} />
                   </F>
+                  {isMod && (
+                    <F label="Minecraft version *" hint="Which EaglerForge build this mod targets">
+                      <select className="form-select" value={vMcVersion}
+                        onChange={e => setVMcVersion(e.target.value as '1.8' | '1.12')}>
+                        <option value="1.12">1.12</option>
+                        <option value="1.8">1.8</option>
+                      </select>
+                    </F>
+                  )}
                   <F label={isSkin ? 'Description (optional)' : 'Changelog'}>
                     <textarea className="form-textarea" rows={2}
                       placeholder={isSkin ? "What's different in this skin…" : 'What changed…'}
