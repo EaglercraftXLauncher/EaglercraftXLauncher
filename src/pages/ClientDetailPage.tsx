@@ -72,6 +72,8 @@ export default function ClientDetailPage({ kind }: Props) {
   const [settingsBannerUrl,   setSettingsBannerUrl]   = useState('');
   const [settingsTags,        setSettingsTags]        = useState('');
   const [settingsSaving,      setSettingsSaving]      = useState(false);
+  const [settingsForgeReady,  setSettingsForgeReady]  = useState(false);
+  const [settingsMcVersion,   setSettingsMcVersion]   = useState<'1.8' | '1.12'>('1.12');
 
   const canEdit  = !!user && CAN_UPLOAD.has(user.role);
   const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
@@ -105,6 +107,8 @@ export default function ClientDetailPage({ kind }: Props) {
         setSettingsPosterUrl(m.posterUrl ?? '');
         setSettingsBannerUrl(m.bannerUrl ?? '');
         setSettingsTags((m.tags ?? []).join(', '));
+        setSettingsForgeReady(!!m.forgeReady);
+        setSettingsMcVersion(m.mcVersion ?? '1.12');
       } else { addToast('Content not found', 'error'); navigate(-1); }
     } catch { addToast('Network error', 'error'); }
     finally { setLoading(false); }
@@ -199,6 +203,26 @@ export default function ClientDetailPage({ kind }: Props) {
     finally { setEditVSaving(false); }
   };
 
+  // Quick per-version Minecraft-version backfill, used in Settings →
+  // EaglerForge Compatibility for mods that were uploaded before
+  // mcVersion existed, so existing mods don't need to be re-uploaded.
+  const [savingMcVersionTag, setSavingMcVersionTag] = useState<string | null>(null);
+
+  const saveVersionMcVersion = async (tag: string, newMcVersion: '1.8' | '1.12') => {
+    setSavingMcVersionTag(tag);
+    try {
+      const res  = await fetch(`${API}/${endpoint}/${contentId}/versions/${encodeURIComponent(tag)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mcVersion: newMcVersion }),
+      });
+      const json = await res.json() as { ok: boolean; error?: string };
+      if (json.ok) { addToast(`${tag} set to MC ${newMcVersion}`, 'success'); loadManifest(); }
+      else addToast(json.error ?? 'Failed', 'error');
+    } catch { addToast('Network error', 'error'); }
+    finally { setSavingMcVersionTag(null); }
+  };
+
   // ── Version delete ─────────────────────────────────────────
   const deleteVersion = async (tag: string) => {
     if (!confirm(`Delete version "${tag}"? This cannot be undone.`)) return;
@@ -290,6 +314,10 @@ export default function ClientDetailPage({ kind }: Props) {
 
   // ── Save project settings ──────────────────────────────────
   const saveSettings = async () => {
+    if (kind === 'client' && settingsForgeReady && !settingsMcVersion) {
+      addToast('Select a Minecraft version for this forge-ready client', 'error');
+      return;
+    }
     setSettingsSaving(true);
     try {
       const res  = await fetch(`${API}/${endpoint}/${contentId}`, {
@@ -302,6 +330,10 @@ export default function ClientDetailPage({ kind }: Props) {
           posterUrl:   settingsPosterUrl.trim(),
           bannerUrl:   settingsBannerUrl.trim(),
           tags:        settingsTags.split(',').map(t => t.trim()).filter(Boolean),
+          ...(kind === 'client' ? {
+            forgeReady: settingsForgeReady,
+            mcVersion:  settingsForgeReady ? settingsMcVersion : undefined,
+          } : {}),
         }),
       });
       const json = await res.json() as { ok: boolean; error?: string };
@@ -926,6 +958,85 @@ export default function ClientDetailPage({ kind }: Props) {
                 </F>
               </div>
             </div>
+
+            {/* EaglerForge Compatibility — mods: backfill mcVersion per existing
+                version; clients: retroactively mark as a forge-ready base */}
+            {isMod && (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)', padding: 22 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>EaglerForge Compatibility</h3>
+                <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
+                  Mods uploaded before EaglerForge support was added don't have a Minecraft version
+                  set yet, so they won't show up as playable. Set one per version below — no need to
+                  re-upload anything.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {manifest.versions.map(v => (
+                    <div key={v.tag} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                      background: 'var(--surface2)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', padding: '10px 14px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{v.tag}</span>
+                        {v.isLatest && (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                            background: 'var(--accent-dim)', color: 'var(--accent)', textTransform: 'uppercase' }}>latest</span>
+                        )}
+                        {!v.mcVersion && (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                            background: 'var(--orange-dim)', color: 'var(--orange)', textTransform: 'uppercase' }}>
+                            not playable yet
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={v.mcVersion ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '1.8' || val === '1.12') saveVersionMcVersion(v.tag, val);
+                        }}
+                        disabled={savingMcVersionTag === v.tag}
+                        className="form-select"
+                        style={{ width: 'auto', fontSize: 12, padding: '4px 8px' }}>
+                        <option value="" disabled>Set MC version…</option>
+                        <option value="1.12">1.12</option>
+                        <option value="1.8">1.8</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {kind === 'client' && (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)', padding: 22 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>EaglerForge Compatibility</h3>
+                <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
+                  Mark this client as a forge-ready base if it was pre-injected with EaglerForge ModAPI
+                  (via the offline EaglerForgeInjector tool). Once marked, mods built for the matching
+                  Minecraft version can run on it. You can have multiple forge-ready clients across
+                  both 1.8 and 1.12 — each mod will only show base clients matching its own version.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)' }}>
+                    <input type="checkbox" checked={settingsForgeReady}
+                      onChange={e => setSettingsForgeReady(e.target.checked)} />
+                    This client has EaglerForge ModAPI injected
+                  </label>
+                  {settingsForgeReady && (
+                    <F label="Minecraft version this client was built for">
+                      <select className="form-select" value={settingsMcVersion}
+                        onChange={e => setSettingsMcVersion(e.target.value as '1.8' | '1.12')}>
+                        <option value="1.12">1.12</option>
+                        <option value="1.8">1.8</option>
+                      </select>
+                    </F>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Images */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
