@@ -3,7 +3,7 @@ import { ok, fail, sessionUser, nanoid } from "./_utils";
 import {
   readIndex, createContent, getManifest, addVersion, addScreenshot,
   addDoc, updateContentMetadata, updateVersionMetadata, deleteVersion, updateDoc, deleteDoc,
-  setAutoSync, removeAutoSync, runAutoSync, proxyAsset, deleteContent,
+  setAutoSync, removeAutoSync, runAutoSync, proxyAsset, deleteContent, listForgeReadyClients,
   type ContentKind, type ClientManifest, type ContentVersion, type AutoSyncConfig,
 } from "./_github";
 
@@ -54,6 +54,14 @@ export async function getDetail(_req: Request, env: Env, contentId: string): Pro
   return ok(manifest, env);
 }
 
+// ── List EaglerForge-ready base clients (optionally filtered) ───
+export async function listForgeClients(req: Request, env: Env): Promise<Response> {
+  const mcVersionRaw = new URL(req.url).searchParams.get("mcVersion");
+  const mcVersion = mcVersionRaw === "1.8" || mcVersionRaw === "1.12" ? mcVersionRaw : undefined;
+  const clients = await listForgeReadyClients(env, mcVersion);
+  return ok({ items: clients }, env);
+}
+
 // ── Create new content ─────────────────────────────────────────
 export async function create(req: Request, env: Env, kind: ContentKind): Promise<Response> {
   const user = await sessionUser(req, env);
@@ -74,6 +82,8 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
   const changelog   = form.get("changelog")?.toString().trim() ?? "";
   const readme      = form.get("readme")?.toString() ?? "";
   const tagsRaw     = form.get("tags")?.toString() ?? "";
+  const mcVersionRaw   = form.get("mcVersion")?.toString().trim();
+  const forgeReadyRaw  = form.get("forgeReady")?.toString().trim();
 
   if (!file || !(file instanceof File)) return fail("file is required", env, 400);
   if (!name) return fail("name is required", env, 400);
@@ -81,6 +91,22 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
 
   const ft = resolveFile(file.name);
   if (!ft) return fail("Unsupported file type", env, 400);
+
+  // Mods must declare which EaglerForge Minecraft version they target,
+  // since mods are version-specific and can't run against a mismatched
+  // base client.
+  let mcVersion: "1.8" | "1.12" | undefined;
+  if (kind === "mod") {
+    if (mcVersionRaw !== "1.8" && mcVersionRaw !== "1.12")
+      return fail("mcVersion must be \"1.8\" or \"1.12\" for mods", env, 400);
+    mcVersion = mcVersionRaw;
+  }
+  const forgeReady = kind === "client" ? forgeReadyRaw === "true" : undefined;
+  if (forgeReady) {
+    if (mcVersionRaw !== "1.8" && mcVersionRaw !== "1.12")
+      return fail("mcVersion must be \"1.8\" or \"1.12\" for forge-ready clients", env, 400);
+    mcVersion = mcVersionRaw;
+  }
 
   const now       = new Date().toISOString();
   const contentId = nanoid(14);
@@ -102,10 +128,13 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
       changelog,
       uploadedAt: now,
       isLatest:   true,
+      mcVersion:  kind === "mod" ? mcVersion : undefined,
     }],
     screenshots: [],
     docs:        [],
     autoSync:    null,
+    forgeReady,
+    mcVersion:   kind === "client" ? mcVersion : undefined,
   };
 
   try {
@@ -116,14 +145,6 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
 
   return ok({ contentId, name }, env, 201);
 }
-
-// After tags parsing
-const minecraftVersion = form.get("minecraftVersion")?.toString().trim();
-if (kind === "mod" && (!minecraftVersion || !["1.8", "1.12"].includes(minecraftVersion))) {
-  return fail("Mods require valid minecraftVersion (1.8 or 1.12)", env, 400);
-}
-
-const manifest = { ... , minecraftVersion, loader: "eaglerforge", eaglerforgeOnly: true };
 
 // ── Add version ────────────────────────────────────────────────
 export async function uploadVersion(req: Request, env: Env, contentId: string): Promise<Response> {
@@ -136,12 +157,21 @@ export async function uploadVersion(req: Request, env: Env, contentId: string): 
   const file       = form.get("file");
   const versionTag = form.get("versionTag")?.toString().trim();
   const changelog  = form.get("changelog")?.toString().trim() ?? "";
+  const mcVersionRaw = form.get("mcVersion")?.toString().trim();
 
   if (!file || !(file instanceof File)) return fail("file is required", env, 400);
   if (!versionTag) return fail("versionTag is required", env, 400);
 
   const ft = resolveFile(file.name);
   if (!ft) return fail("Unsupported file type", env, 400);
+
+  const manifestKind = (await getManifest(env, contentId))?.kind;
+  let mcVersion: "1.8" | "1.12" | undefined;
+  if (manifestKind === "mod") {
+    if (mcVersionRaw !== "1.8" && mcVersionRaw !== "1.12")
+      return fail("mcVersion must be \"1.8\" or \"1.12\" for mods", env, 400);
+    mcVersion = mcVersionRaw;
+  }
 
   const version: ContentVersion = {
     tag:        versionTag,
@@ -150,6 +180,7 @@ export async function uploadVersion(req: Request, env: Env, contentId: string): 
     changelog,
     uploadedAt: new Date().toISOString(),
     isLatest:   true,
+    mcVersion,
   };
 
   try {
@@ -206,8 +237,11 @@ export async function updateContent(req: Request, env: Env, contentId: string): 
   const allowed = await canManageContent(req, env, contentId);
   if (!allowed.ok) return allowed.response;
 
-  let body: { name?: string; description?: string; faviconUrl?: string; posterUrl?: string; bannerUrl?: string; tags?: string[] };
+  let body: { name?: string; description?: string; faviconUrl?: string; posterUrl?: string; bannerUrl?: string; tags?: string[]; forgeReady?: boolean; mcVersion?: "1.8" | "1.12" };
   try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
+
+  if (body.forgeReady && body.mcVersion !== "1.8" && body.mcVersion !== "1.12")
+    return fail("mcVersion must be \"1.8\" or \"1.12\" when forgeReady is true", env, 400);
 
   try {
     const manifest = await updateContentMetadata(env, contentId, {
@@ -217,6 +251,8 @@ export async function updateContent(req: Request, env: Env, contentId: string): 
       posterUrl: body.posterUrl?.trim(),
       bannerUrl: body.bannerUrl?.trim(),
       tags: Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : undefined,
+      forgeReady: body.forgeReady,
+      mcVersion: body.mcVersion,
     });
     return ok(manifest, env);
   } catch (e) {
@@ -228,11 +264,12 @@ export async function updateContent(req: Request, env: Env, contentId: string): 
 export async function updateVersion(req: Request, env: Env, contentId: string, tag: string): Promise<Response> {
   const allowed = await canManageContent(req, env, contentId);
   if (!allowed.ok) return allowed.response;
-  let body: { tag?: string; label?: string; changelog?: string; isLatest?: boolean };
+  let body: { tag?: string; label?: string; changelog?: string; isLatest?: boolean; mcVersion?: "1.8" | "1.12" };
   try { body = await req.json(); } catch { return fail("JSON required", env, 400); }
   try {
     const manifest = await updateVersionMetadata(env, contentId, decodeURIComponent(tag), {
       tag: body.tag?.trim(), label: body.label?.trim(), changelog: body.changelog, isLatest: body.isLatest,
+      mcVersion: body.mcVersion,
     });
     return ok(manifest, env);
   } catch (e) {
