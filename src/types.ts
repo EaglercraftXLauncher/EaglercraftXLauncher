@@ -26,14 +26,8 @@ export interface ContentEntry {
   updatedAt?: string;
   latestTag?: string | null;
   downloadCount?: number;
-}
-// Add to ContentEntry or create ModManifest extension
-export interface ModMetadata extends ContentEntry {
-  minecraftVersion: string;        // e.g. "1.8", "1.12", "1.8-1.12"
-  loader: "eaglerforge";           // Enforced — no other loaders
-  eaglerforgeOnly: true;
-  injectionMethod?: "url" | "param" | "injector";  // How mods are loaded
-  dependencies?: string[];         // Other mod contentIds
+  forgeReady?: boolean;
+  mcVersion?: "1.8" | "1.12";
 }
 
 export interface IndexEntry extends ContentEntry {}
@@ -45,6 +39,7 @@ export interface ContentVersion {
   changelog: string;
   uploadedAt: string;
   isLatest: boolean;
+  mcVersion?: "1.8" | "1.12";
 }
 
 export interface AutoSyncConfig {
@@ -74,6 +69,6 @@ export interface ClientManifest {
   docs: string[];
   autoSync: AutoSyncConfig | null;
   autoSyncs?: AutoSyncConfig[];
-  supportedMcVersions?: string[];  // e.g. ["1.8", "1.12"]
-  isForgeReady?: boolean;          // Pre-injected clients
+  forgeReady?: boolean;
+  mcVersion?: "1.8" | "1.12";
 }
