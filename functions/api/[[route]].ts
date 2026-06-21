@@ -5,7 +5,7 @@ import { newOAuthState, googleLoginUrl, githubLoginUrl, googleCallback, githubCa
 import {
   browse, create, getDetail, uploadVersion, uploadScreenshot,
   uploadDoc, updateContent, updateVersion, removeVersion, editDoc, removeDoc,
-  updateAutoSync, triggerSync, serveAsset, hardDelete,
+  updateAutoSync, triggerSync, serveAsset, hardDelete, listForgeClients,
 } from "./_content";
 import { getPublicUser, listUsers, getMe, updateMe, logout, banUser, unbanUser } from "./_users";
 import {
@@ -66,6 +66,9 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       if (method === "GET")  return browse(req, env, kind);
       if (method === "POST") return create(req, env, kind);
     }
+
+    // ── EaglerForge-ready base clients, e.g. /clients/forge-ready?mcVersion=1.8
+    if (path === "/clients/forge-ready" && method === "GET") return listForgeClients(req, env);
 
     // ── Content single ────────────────────────────────────────
     const entryMatch = path.match(/^\/(clients|mods|skins)\/([^/]+)$/);
