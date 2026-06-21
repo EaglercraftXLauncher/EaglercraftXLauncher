@@ -40,6 +40,8 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
   const [readme,      setReadme]      = useState('');
   const [file,        setFile]        = useState<File | null>(null);
   const [loading,     setLoading]     = useState(false);
+  const [mcVersion,   setMcVersion]   = useState<'1.8' | '1.12'>('1.12');
+  const [forgeReady,  setForgeReady]  = useState(false);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -54,6 +56,8 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
     if (!name.trim())     { addToast('Name is required', 'error'); return; }
     if (!description.trim()) { addToast('Description is required', 'error'); return; }
     if (!versionTag.trim())  { addToast('Version tag is required', 'error'); return; }
+    if (kind === 'mod' && !mcVersion) { addToast('Select a Minecraft version for this mod', 'error'); return; }
+    if (forgeReady && !mcVersion) { addToast('Select a Minecraft version for this forge-ready client', 'error'); return; }
 
     setLoading(true);
     const endpoint = kind === 'client' ? 'clients' : kind === 'mod' ? 'mods' : 'skins';
@@ -69,6 +73,11 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
     fd.append('changelog', changelog.trim());
     fd.append('tags', tags);
     if (readme.trim()) fd.append('readme', readme.trim());
+    if (kind === 'mod') fd.append('mcVersion', mcVersion);
+    if (kind === 'client' && forgeReady) {
+      fd.append('forgeReady', 'true');
+      fd.append('mcVersion', mcVersion);
+    }
 
     try {
       const res  = await fetch(`${API}/${endpoint}`, {
@@ -116,6 +125,32 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
           <Field label="Version tag *" hint="e.g. v1.0, v2.1-beta">
             <input className="form-input" value={versionTag} onChange={e => setVersionTag(e.target.value)} maxLength={30} />
           </Field>
+
+          {kind === 'mod' && (
+            <Field label="Minecraft version *" hint="EaglerForge mods are version-specific — pick the one this mod was built for">
+              <select className="form-select" value={mcVersion} onChange={e => setMcVersion(e.target.value as '1.8' | '1.12')}>
+                <option value="1.12">1.12</option>
+                <option value="1.8">1.8</option>
+              </select>
+            </Field>
+          )}
+
+          {kind === 'client' && (
+            <Field label="EaglerForge support" hint="Only check this if the uploaded client was pre-injected with EaglerForge ModAPI (via EaglerForgeInjector). This lets mods run on it.">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)' }}>
+                <input type="checkbox" checked={forgeReady} onChange={e => setForgeReady(e.target.checked)} />
+                This client has EaglerForge ModAPI injected
+              </label>
+              {forgeReady && (
+                <select className="form-select" value={mcVersion} onChange={e => setMcVersion(e.target.value as '1.8' | '1.12')}
+                  style={{ marginTop: 8 }}>
+                  <option value="1.12">Built for Minecraft 1.12</option>
+                  <option value="1.8">Built for Minecraft 1.8</option>
+                </select>
+              )}
+            </Field>
+          )}
+
           <Field label="Changelog">
             <textarea className="form-textarea" rows={2} placeholder="What's in this version…" value={changelog} onChange={e => setChangelog(e.target.value)} />
           </Field>
