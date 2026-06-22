@@ -87,7 +87,7 @@ export async function create(req: Request, env: Env, kind: ContentKind): Promise
 
   if (!file || !(file instanceof File)) return fail("file is required", env, 400);
   if (!name) return fail("name is required", env, 400);
-  if (file.size > 60 * 1024 * 1024) return fail("File too large — max 60 MB", env, 400);
+  if (file.size > 500 * 1024 * 1024) return fail("File too large — max 500 MB", env, 400);
 
   const ft = resolveFile(file.name);
   if (!ft) return fail("Unsupported file type", env, 400);
