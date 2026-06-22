@@ -46,7 +46,7 @@ export default function UploadModal({ kind, onClose, onUploaded }: Props) {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 60 * 1024 * 1024) { addToast('Max file size is 60 MB', 'error'); return; }
+    if (f.size > 500 * 1024 * 1024) { addToast('Max file size is 500 MB', 'error'); return; }
     setFile(f);
     if (!name) setName(f.name.replace(/\.[^.]+$/, ''));
   };
